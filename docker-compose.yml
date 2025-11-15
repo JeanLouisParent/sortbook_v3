@@ -9,10 +9,15 @@ services:
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=passn8n
-      - N8N_HOST=0.0.0.0
-      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_HOST=192.168.1.56
+      - N8N_PROTOCOL=https
+      - N8N_SSL_KEY=/certs/n8n.key
+      - N8N_SSL_CERT=/certs/n8n.crt
+      - N8N_SECURE_COOKIE=true
+      - WEBHOOK_URL=https://192.168.1.56:5678/
     volumes:
       - ./n8n_data:/home/node/.n8n
+      - ./certs:/certs:ro
 
   ollama:
     image: ollama/ollama:latest
@@ -20,6 +25,13 @@ services:
     privileged: true
     ports:
       - "11434:11434"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: ["gpu"]
     volumes:
       - ./ollama_data:/root/.ollama
       - ./docker/ollama-entrypoint.sh:/entrypoint.sh:ro

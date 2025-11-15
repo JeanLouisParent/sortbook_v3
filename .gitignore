@@ -11,3 +11,4 @@ ebooks/
 # Fichiers temporaires
 .DS_Store
 *.log
+certs/

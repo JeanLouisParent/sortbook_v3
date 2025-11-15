@@ -54,3 +54,15 @@ Adaptez les variables dans `docker-compose.yml` selon votre infrastructure.
 
 - `doc/agents.md` : vue d'ensemble des acteurs et variables disponibles.
 - `doc/usage.md` : commandes CLI, Docker et docker-compose détaillées.
+
+Depuis Docker (service `epub-agent`), pour tester la route de **test** du webhook (`webhook-test/epub-metadata`) avec le certificat local et HTTPS :
+
+```bash
+docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook-test/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
+```
+
+Et pour la route **normale** (`webhook/epub-metadata`) :
+
+```bash
+docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
+```

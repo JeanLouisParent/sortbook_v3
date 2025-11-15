@@ -9,12 +9,22 @@ import requests
 DEFAULT_WEBHOOK_URL = "http://localhost:5678/webhook/epub-metadata"
 WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL", DEFAULT_WEBHOOK_URL)
 TEST_TEXT = os.environ.get("N8N_TEST_TEXT", "test")
+VERIFY_SSL = os.environ.get("N8N_VERIFY_SSL", "true").lower() not in {
+    "0",
+    "false",
+    "no",
+}
 
 
 def main() -> None:
-    print(f"Envoi d'un test au webhook : {WEBHOOK_URL}")
+    print(f"Envoi d'un test au webhook : {WEBHOOK_URL} (verify_ssl={VERIFY_SSL})")
     try:
-        response = requests.post(WEBHOOK_URL, json={"text": TEST_TEXT}, timeout=30)
+        response = requests.post(
+            WEBHOOK_URL,
+            json={"text": TEST_TEXT},
+            timeout=30,
+            verify=VERIFY_SSL,
+        )
         response.raise_for_status()
     except requests.RequestException as exc:
         print(f"Erreur lors de l'appel webhook : {exc}")
