@@ -1,8 +1,6 @@
-version: '3.8'
-
 services:
   n8n:
-    image: n8nio/n8n:latest
+    image: n8nio/n8n:1.119.2
     restart: always
     ports:
       - "5678:5678"
@@ -15,3 +13,32 @@ services:
       - WEBHOOK_URL=http://localhost:5678/
     volumes:
       - ./n8n_data:/home/node/.n8n
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    privileged: true
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./ollama_data:/root/.ollama
+      - ./docker/ollama-entrypoint.sh:/entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /entrypoint.sh
+
+  epub-agent:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      n8n:
+        condition: service_started
+      ollama:
+        condition: service_started
+    environment:
+      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/epub-metadata
+      - EPUB_SOURCE_DIR=/data
+      - DRY_RUN=true # Passez à false pour activer les renommages
+      - CONFIDENCE_MIN=moyenne
+    volumes:
+      - ./ebooks:/data:rw
