@@ -1,4 +1,4 @@
-﻿# Agents & automatisations
+# Agents & automatisations
 
 Ce projet repose sur deux briques principales :
 
@@ -9,9 +9,9 @@ Ce projet repose sur deux briques principales :
   - envoie ce texte à n8n ;
   - applique les règles métier pour le renommage.
 - **Ollama** :
-  - conteneur dédié qui héberge les modèles locaux (Mistral 7B pour nos tests) ;
-  - lance `ollama serve`, attend qu'il soit disponible puis télécharge `mistral:7b` si nécessaire ;
-  - expose l'API sur le port `11434`.
+  - peut être utilisé soit via un conteneur Docker optionnel, soit en installation "native" sur l'OS ;
+  - dans le `docker-compose.yml`, le service `ollama` est désactivé par défaut (profil `ollama`) pour améliorer la stabilité et la gestion des secrets n8n ;
+  - nous recommandons fortement d'installer Ollama directement sur la machine hôte et de le configurer dans n8n via `OLLAMA_HOST`.
 
 ## Flux de bout en bout
 
@@ -22,12 +22,13 @@ Ce projet repose sur deux briques principales :
 
 ## Paramètres clés
 
-| Variable          | Description                                                       |
-| ----------------- | ----------------------------------------------------------------- |
+| Variable          | Description                                                      |
+| ----------------- | ---------------------------------------------------------------- |
 | `N8N_WEBHOOK_URL` | URL du webhook exposé par n8n.                                   |
-| `EPUB_SOURCE_DIR` | Dossier racine des EPUB lors de l'exécution dans Docker.         |
-| `DRY_RUN`         | `true` (défaut) pour simuler, `false` pour renommer réellement.  |
-| `CONFIDENCE_MIN`  | `faible`, `moyenne` ou `élevée` pour filtrer les renommages.     |
-| `OLLAMA_HOST`     | (Optionnel) URL interne pour consommer Ollama depuis n8n.        |
+| `EPUB_SOURCE_DIR` | Dossier racine des EPUB lors de l'exécution dans Docker.        |
+| `DRY_RUN`         | `true` (défaut) pour simuler, `false` pour renommer réellement. |
+| `CONFIDENCE_MIN`  | `faible`, `moyenne` ou `élevée` pour filtrer les renommages.    |
+| `OLLAMA_HOST`     | (Optionnel) URL interne pour consommer Ollama depuis n8n.       |
 
 Ces paramètres peuvent être transmis via Docker, docker-compose ou directement en ligne de commande.
+
