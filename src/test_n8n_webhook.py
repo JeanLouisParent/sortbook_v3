@@ -9,11 +9,13 @@ import requests
 DEFAULT_WEBHOOK_URL = "http://localhost:5678/webhook/epub-metadata"
 WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL", DEFAULT_WEBHOOK_URL)
 TEST_TEXT = os.environ.get("N8N_TEST_TEXT", "test")
-VERIFY_SSL = os.environ.get("N8N_VERIFY_SSL", "true").lower() not in {
-    "0",
-    "false",
-    "no",
-}
+_VERIFY_SSL_RAW = os.environ.get("N8N_VERIFY_SSL", "true").strip()
+if _VERIFY_SSL_RAW.lower() in {"0", "false", "no", "non"}:
+    VERIFY_SSL: bool | str = False
+elif _VERIFY_SSL_RAW.lower() in {"1", "true", "yes", "oui"}:
+    VERIFY_SSL = True
+else:
+    VERIFY_SSL = _VERIFY_SSL_RAW
 
 
 def main() -> None:

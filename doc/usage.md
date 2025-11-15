@@ -1,133 +1,98 @@
-# Guide d'utilisation
+﻿# Guide d'utilisation
 
 ## Pré-requis locaux
 
 1. Python 3.11+
-2. `pip install -r requirements.txt` (seul le paquet `requests` est nécessaire)
+2. `pip install -r requirements.txt`
 
 ## Lancer le script en local
 
 ```bash
-python src/epub_metadata.py --folder /chemin/vers/mes/epub --dry-run
+python src/epub_metadata.py --folder /chemin/vers/mes/epub --dry-run --limit 5
 ```
 
-- Passer `--no-dry-run` pour renommer réellement.
-- Pour modifier le seuil de confiance : `--confidence-min élevée`.
-- Le webhook se configure via `export N8N_WEBHOOK_URL="http://localhost:5678/webhook/epub-metadata"`.
+- `--dry-run` (par défaut) évite les renommages.
+- `--limit` permet de couper après X fichiers.
+- Les variables `EPUB_SOURCE_DIR`, `CONFIDENCE_MIN`, `N8N_WEBHOOK_*` se lisent depuis l'environnement.
 
-## Variables d'environnement utiles
+## Configuration centralisée (.env)
 
-```bash
-export EPUB_SOURCE_DIR=/chemin/vers/mes/ebooks
-export DRY_RUN=false
-export CONFIDENCE_MIN=moyenne
-export N8N_WEBHOOK_URL=https://n8n.exemple.com/webhook/epub-metadata
+Créez un fichier `.env` à la racine pour concentrer toutes les options :
+
+```env
+EPUB_ROOT=G:/livres bruts
+EPUB_SOURCE_DIR=/data
+EPUB_DEST=G:/Livres_sorted
+LOG_DIR=/log
+EPUB_LOG_FILE=n8n_response.json
+
+N8N_WEBHOOK_TEST_URL=https://192.168.1.56:5678/webhook-test/epub-metadata
+N8N_WEBHOOK_PROD_URL=https://192.168.1.56:5678/webhook/epub-metadata
+N8N_MODE=test
+N8N_VERIFY_SSL=true
+
+CONFIDENCE_MIN=0.9
 ```
 
-Lancer ensuite le script sans options : il lira ces variables et ne posera pas de question.
-
-## Utilisation avec Docker
-
-1. Placez vos EPUB dans un dossier local (ex. `./ebooks`).
-2. Construisez l'image :
-
-```bash
-docker build -t sortbook-epub .
-```
-
-3. Lancez en montant le dossier :
-
-```bash
-docker run --rm \
-  -e N8N_WEBHOOK_URL=http://host.docker.internal:5678/webhook/epub-metadata \
-  -e DRY_RUN=false \
-  -v $(pwd)/ebooks:/data \
-  sortbook-epub
-```
+- `EPUB_ROOT` sert à monter les EPUB dans Docker et est transmis dans le payload (`root`).
+- `EPUB_DEST` sera utilisé plus tard pour déplacer les livres renommés (elle figure déjà dans le payload).
+- `N8N_MODE` règle l'URL utilisée (`test` ou `prod`).
+- `LOG_DIR`/`EPUB_LOG_FILE` pointent vers `/log/n8n_response.json` ; chaque ressource est logguée au format JSON.
 
 ## Via docker-compose
 
-Le fichier `docker-compose.yml` fournit trois services :
+`docker-compose.yml` lance :
 
-- `n8n` : workflow IA (exposé sur `localhost:5678`), image officielle (tag 1.119.2) avec données versionnées via `n8n_data/`.
-- `ollama` : serveur local Ollama (`localhost:11434`) qui télécharge automatiquement `mistral:7b`.
-- `epub-agent` : exécute périodiquement le script (dry-run activé par défaut). Adaptez le volume `./ebooks:/data`.
+- **n8n** (port 5678) : webhook sécurisé avec TLS.
+- **ollama** (port 11434) : serveur local de modèles (peut être désactivé si vous utilisez une instance Windows).
+- **epub-agent** : script Python lise `/data` et appelle n8n.
 
-Commande :
+Le service `epub-agent` monte automatiquement le chemin `EPUB_ROOT` et les certificates :
+
+```yaml
+epub-agent:
+  build: .
+  restart: unless-stopped
+  depends_on:
+    n8n:
+      condition: service_started
+  environment:
+    - EPUB_SOURCE_DIR=/data
+  volumes:
+    - ${EPUB_ROOT:-./ebooks}:/data:rw
+    - ./certs:/certs:ro
+```
+
+### Lancer la stack
 
 ```bash
 docker compose up --build
 ```
 
-Surveillez ensuite les logs des services (`n8n`, `ollama`, `epub-agent`) pour vérifier le bon déroulement du flux. Lorsque vous mettez à jour n8n pour appeler Ollama, utilisez l'URL interne `http://ollama:11434`. Le service Ollama télécharge `mistral:7b` au premier démarrage.
-"
-
-## Acc�s HTTPS � n8n en local (Windows -> Mac)
-
-Pour exposer n8n en HTTPS depuis un serveur Windows vers un Mac, sans versionner les certificats dans Git :
-
-1. Assurez-vous que le dossier `certs/` est pr�sent � la racine du projet (il est ignor� par Git via `.gitignore`).
-2. Sur le serveur Windows (ex. IP `192.168.1.56`), installez OpenSSL (Win64 OpenSSL Light) puis g�n�rez un certificat auto-sign� :
-
-```powershell
-cd G:\Work\sortbook_v3
-mkdir certs -Force
-
-"C:\Program Files\OpenSSL-Win64\bin\openssl.exe" req -x509 -nodes -days 365 ^
-  -newkey rsa:2048 ^
-  -keyout certs/n8n.key ^
-  -out certs/n8n.crt ^
-  -subj "/CN=192.168.1.56"
-```
-
-3. Configurez le service `n8n` dans `docker-compose.yml` pour utiliser TLS directement :
-
-```yaml
-services:
-  n8n:
-    image: n8nio/n8n:1.119.2
-    restart: always
-    ports:
-      - "5678:5678"
-    environment:
-      - GENERIC_TIMEZONE=Europe/Paris
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=admin
-      - N8N_BASIC_AUTH_PASSWORD=passn8n
-      - N8N_HOST=192.168.1.56
-      - N8N_PROTOCOL=https
-      - N8N_SSL_KEY=/certs/n8n.key
-      - N8N_SSL_CERT=/certs/n8n.crt
-      - N8N_SECURE_COOKIE=true
-      - WEBHOOK_URL=https://192.168.1.56:5678/
-    volumes:
-      - ./n8n_data:/home/node/.n8n
-      - ./certs:/certs:ro
-```
-
-4. Red�marrez les services :
+### Tester un lot limité d’EPUB
 
 ```bash
-docker compose down
-docker compose up -d
+docker compose run --rm --no-deps epub-agent --limit 10 --dry-run
 ```
 
-5. Sur le Mac, importez `certs/n8n.crt` dans le Trousseau d'acc�s et marquez-le comme "toujours approuv�" pour SSL, puis acc�dez � n8n via :
+- La commande appuie uniquement sur `--limit` et `--dry-run` ; tout le reste (webhook, root, log, TLS) vient de `.env`.
+- `--no-dry-run` bascule les renommages en production.
 
-```text
-https://192.168.1.56:5678/
+## Journaux et résultats
+
+Chaque EPUB traité ajoute une ligne JSON dans `EPUB_LOG_FILE` (ni `null`, ni rien):
+
+```json
+{
+  "filename": "MonLivre.epub",
+  "path": "/data/MonLivre.epub",
+  "titre": "...",
+  "auteur": "...",
+  "confiance": "0.81",
+  "root": "G:/livres bruts",
+  "metadata": {"title":"","creator":""...},
+  "payload": {"filename":"MonLivre.epub","root":"G:/livres bruts",...}
+}
 ```
 
-## Tester rapidement le webhook n8n depuis Docker
-
-Pour tester la route de **test** de votre workflow (ex. `webhook-test/epub-metadata`) avec le script `src/test_n8n_webhook.py` depuis le conteneur `epub-agent` :
-
-```bash
-docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook-test/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
-```
-
-Pour tester la route **normale** (production) du webhook (`webhook/epub-metadata`) :
-
-```bash
-docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
-```
+Tu peux ensuite consommer ce log pour alimenter n8n ou ton analyse.

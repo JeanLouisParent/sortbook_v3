@@ -45,12 +45,18 @@ services:
     depends_on:
       n8n:
         condition: service_started
-      ollama:
-        condition: service_started
     environment:
-      - N8N_WEBHOOK_URL=http://n8n:5678/webhook/epub-metadata
       - EPUB_SOURCE_DIR=/data
-      - DRY_RUN=true # Passez à false pour activer les renommages
-      - CONFIDENCE_MIN=moyenne
+      - EPUB_ROOT=${EPUB_ROOT}
+      - EPUB_DEST=${EPUB_DEST}
+      - LOG_DIR=${LOG_DIR}
+      - EPUB_LOG_FILE=${EPUB_LOG_FILE}
+      - N8N_WEBHOOK_TEST_URL=${N8N_WEBHOOK_TEST_URL}
+      - N8N_WEBHOOK_PROD_URL=${N8N_WEBHOOK_PROD_URL}
+      - N8N_MODE=${N8N_MODE}
+      - N8N_VERIFY_SSL=${N8N_VERIFY_SSL}
+      - CONFIDENCE_MIN=${CONFIDENCE_MIN}
     volumes:
-      - ./ebooks:/data:rw
+      - ${EPUB_ROOT:-./ebooks}:/data:rw
+      - .:/app:rw
+      - ./certs:/certs:ro

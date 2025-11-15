@@ -38,21 +38,44 @@ python src/test_n8n_webhook.py
 Variables utiles :
 - `N8N_WEBHOOK_URL` : change l'URL cibl√©e.
 - `N8N_TEST_TEXT` : texte envoy√© (d√©faut : `test`).
-
 ## Docker / Compose
 
-1. Placez vos EPUB dans `./ebooks` (ou un autre dossier).
-2. Lancez `docker compose up --build`.
-3. Les services disponibles :
-   - `n8n` (port 5678) pour le webhook (image officielle tagg√©e 1.119.2, les workflows sont versionn√©s via le volume `n8n_data/`).
-   - `ollama` (port 11434) qui lance automatiquement `ollama serve` et t√©l√©charge `mistral:7b` si n√©cessaire.
-   - `epub-agent` qui lit le volume `./ebooks:/data`.
+CrÈez ou mettez ‡ jour `.env` ‡ la racine :
 
-Adaptez les variables dans `docker-compose.yml` selon votre infrastructure.
+```env
+EPUB_ROOT=G:/livres bruts
+EPUB_SOURCE_DIR=/data
+EPUB_DEST=G:/Livres_sorted
+LOG_DIR=/app/log
+EPUB_LOG_FILE=n8n_response.json
+
+N8N_WEBHOOK_TEST_URL=https://192.168.1.56:5678/webhook-test/epub-metadata
+N8N_WEBHOOK_PROD_URL=https://192.168.1.56:5678/webhook/epub-metadata
+N8N_MODE=prod
+N8N_VERIFY_SSL=/certs/n8n.crt
+
+CONFIDENCE_MIN=0.9
+```
+
+`docker-compose.yml` utilise `${EPUB_ROOT}` pour monter ton dossier (`${EPUB_ROOT:-./ebooks}:/data:rw`), monte le repo dans `/app` et partage `certs/` pour TLS.
+Ensuite lance la stack :
+
+```bash
+docker compose up --build
+```
+
+Les services exposÈs :
+- `n8n` (port 5678) pour le webhook, avec TLS via les certs.
+- `ollama` (port 11434) qui hÈberge les modËles.
+- `epub-agent` qui lit `/data` (ton dossier issu de `EPUB_ROOT`) et exÈcute le script.
+
+Pour tester rapidement le traitement en mode `dry-run` avec limitation :
+
+```bash
+docker compose run --rm --no-deps epub-agent --limit 10 --dry-run
+```
 
 ## Documentation
-
-- `doc/agents.md` : vue d'ensemble des acteurs et variables disponibles.
 - `doc/usage.md` : commandes CLI, Docker et docker-compose d√©taill√©es.
 
 Depuis Docker (service `epub-agent`), pour tester la route de **test** du webhook (`webhook-test/epub-metadata`) avec le certificat local et HTTPS :
@@ -66,3 +89,4 @@ Et pour la route **normale** (`webhook/epub-metadata`) :
 ```bash
 docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
 ```
+
