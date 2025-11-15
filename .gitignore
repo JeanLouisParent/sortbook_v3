@@ -4,9 +4,11 @@ __pycache__/
 *.egg-info/
 .venv/
 
-# Données locales montées dans les conteneurs
+# Donn?es locales mont?es dans les conteneurs
 ollama_data/
 ebooks/
+log/
+
 
 # Fichiers temporaires
 .DS_Store
