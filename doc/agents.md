@@ -1,9 +1,9 @@
-# Agents & automatisations
+﻿# Agents & automatisations
 
 Ce projet repose sur deux briques principales :
 
 - **n8n** : orchestre l'analyse sémantique via un webhook HTTP. Il reçoit `text`, interroge un modèle et renvoie `titre`, `auteur`, `confiance`, `explication`.
-- Les workflows sont versionnés via le dossier monté `n8n_data/` (que vous pouvez commiter pour les partager entre machines).
+- Les workflows sont versionnés via le dossier monté `n8n_data/` (que vous pouvez committer pour les partager entre machines).
 - **Agent de tri EPUB** (ce dépôt) :
   - extrait un extrait pertinent des fichiers EPUB ;
   - envoie ce texte à n8n ;
@@ -22,12 +22,12 @@ Ce projet repose sur deux briques principales :
 
 ## Paramètres clés
 
-| Variable | Description |
-| --- | --- |
-| `N8N_WEBHOOK_URL` | URL du webhook exposé par n8n. |
-| `EPUB_SOURCE_DIR` | Dossier racine des EPUB lors de l'exécution dans Docker. |
-| `DRY_RUN` | `true` (défaut) pour simuler, `false` pour renommer réellement. |
-| `CONFIDENCE_MIN` | `faible`, `moyenne` ou `élevée` pour filtrer les renommages. |
-| `OLLAMA_HOST` | (Optionnel) URL interne pour consommer Ollama depuis n8n (`http://ollama:11434`). |
+| Variable          | Description                                                       |
+| ----------------- | ----------------------------------------------------------------- |
+| `N8N_WEBHOOK_URL` | URL du webhook exposé par n8n.                                   |
+| `EPUB_SOURCE_DIR` | Dossier racine des EPUB lors de l'exécution dans Docker.         |
+| `DRY_RUN`         | `true` (défaut) pour simuler, `false` pour renommer réellement.  |
+| `CONFIDENCE_MIN`  | `faible`, `moyenne` ou `élevée` pour filtrer les renommages.     |
+| `OLLAMA_HOST`     | (Optionnel) URL interne pour consommer Ollama depuis n8n.        |
 
 Ces paramètres peuvent être transmis via Docker, docker-compose ou directement en ligne de commande.

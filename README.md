@@ -1,4 +1,4 @@
-# sortbook_v3
+﻿# sortbook_v3
 
 Automatise l'identification et le renommage de fichiers EPUB en s'appuyant sur un workflow n8n.
 
@@ -19,7 +19,7 @@ Automatise l'identification et le renommage de fichiers EPUB en s'appuyant sur u
 └── doc/                    # Documentation (agents, guide d'usage)
 ```
 
-## Installation rapide
+## Installation rapide (local)
 
 ```bash
 pip install -r requirements.txt
@@ -38,9 +38,10 @@ python src/test_n8n_webhook.py
 Variables utiles :
 - `N8N_WEBHOOK_URL` : change l'URL ciblée.
 - `N8N_TEST_TEXT` : texte envoyé (défaut : `test`).
+
 ## Docker / Compose
 
-Cr�ez ou mettez � jour `.env` � la racine :
+Créez ou mettez à jour `.env` à la racine :
 
 ```env
 EPUB_ROOT=G:/livres bruts
@@ -64,29 +65,41 @@ Ensuite lance la stack :
 docker compose up --build
 ```
 
-Les services expos�s :
+Les services exposés :
 - `n8n` (port 5678) pour le webhook, avec TLS via les certs.
-- `ollama` (port 11434) qui h�berge les mod�les.
-- `epub-agent` qui lit `/data` (ton dossier issu de `EPUB_ROOT`) et ex�cute le script.
+- `ollama` (port 11434) qui héberge les modèles.
+- `epub-agent` qui lit `/data` (ton dossier issu de `EPUB_ROOT`) et exécute le script.
 
 Pour tester rapidement le traitement en mode `dry-run` avec limitation :
 
 ```bash
-docker compose run --rm --no-deps epub-agent --limit 10 --dry-run
+docker compose run --rm --no-deps \
+  --entrypoint python \
+  epub-agent \
+  src/epub_metadata.py --limit 10 --dry-run
 ```
 
 ## Documentation
+
+- `doc/agents.md` : vue d'ensemble des acteurs et variables disponibles.
 - `doc/usage.md` : commandes CLI, Docker et docker-compose détaillées.
 
 Depuis Docker (service `epub-agent`), pour tester la route de **test** du webhook (`webhook-test/epub-metadata`) avec le certificat local et HTTPS :
 
 ```bash
-docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook-test/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
+docker compose run --rm --entrypoint python \
+  -v ${PWD}/certs:/certs:ro \
+  -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook-test/epub-metadata \
+  -e REQUESTS_CA_BUNDLE=/certs/n8n.crt \
+  epub-agent src/test_n8n_webhook.py
 ```
 
 Et pour la route **normale** (`webhook/epub-metadata`) :
 
 ```bash
-docker compose run --rm --entrypoint python -v ${PWD}/certs:/certs:ro -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook/epub-metadata -e REQUESTS_CA_BUNDLE=/certs/n8n.crt epub-agent src/test_n8n_webhook.py
+docker compose run --rm --entrypoint python \
+  -v ${PWD}/certs:/certs:ro \
+  -e N8N_WEBHOOK_URL=https://192.168.1.56:5678/webhook/epub-metadata \
+  -e REQUESTS_CA_BUNDLE=/certs/n8n.crt \
+  epub-agent src/test_n8n_webhook.py
 ```
-

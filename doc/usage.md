@@ -17,27 +17,12 @@ python src/epub_metadata.py --folder /chemin/vers/mes/epub --dry-run --limit 5
 
 ## Configuration centralisée (.env)
 
-Créez un fichier `.env` à la racine pour concentrer toutes les options :
-
-```env
-EPUB_ROOT=G:/livres bruts
-EPUB_SOURCE_DIR=/data
-EPUB_DEST=G:/Livres_sorted
-LOG_DIR=/log
-EPUB_LOG_FILE=n8n_response.json
-
-N8N_WEBHOOK_TEST_URL=https://192.168.1.56:5678/webhook-test/epub-metadata
-N8N_WEBHOOK_PROD_URL=https://192.168.1.56:5678/webhook/epub-metadata
-N8N_MODE=test
-N8N_VERIFY_SSL=true
-
-CONFIDENCE_MIN=0.9
-```
+Créez un fichier `.env` à la racine pour concentrer toutes les options (voir exemple dans le README).
 
 - `EPUB_ROOT` sert à monter les EPUB dans Docker et est transmis dans le payload (`root`).
-- `EPUB_DEST` sera utilisé plus tard pour déplacer les livres renommés (elle figure déjà dans le payload).
+- `EPUB_DEST` pourra être utilisé plus tard pour déplacer les livres renommés (elle figure déjà dans le payload).
 - `N8N_MODE` règle l'URL utilisée (`test` ou `prod`).
-- `LOG_DIR`/`EPUB_LOG_FILE` pointent vers `/log/n8n_response.json` ; chaque ressource est logguée au format JSON.
+- `LOG_DIR`/`EPUB_LOG_FILE` définissent où le log JSON est écrit dans le conteneur.
 
 ## Via docker-compose
 
@@ -45,9 +30,9 @@ CONFIDENCE_MIN=0.9
 
 - **n8n** (port 5678) : webhook sécurisé avec TLS.
 - **ollama** (port 11434) : serveur local de modèles (peut être désactivé si vous utilisez une instance Windows).
-- **epub-agent** : script Python lise `/data` et appelle n8n.
+- **epub-agent** : script Python qui lit `/data` et appelle n8n.
 
-Le service `epub-agent` monte automatiquement le chemin `EPUB_ROOT` et les certificates :
+Le service `epub-agent` monte automatiquement le chemin `EPUB_ROOT` et les certificats :
 
 ```yaml
 epub-agent:
@@ -60,6 +45,7 @@ epub-agent:
     - EPUB_SOURCE_DIR=/data
   volumes:
     - ${EPUB_ROOT:-./ebooks}:/data:rw
+    - .:/app:rw
     - ./certs:/certs:ro
 ```
 
@@ -69,10 +55,13 @@ epub-agent:
 docker compose up --build
 ```
 
-### Tester un lot limité d’EPUB
+### Tester un lot limité d'EPUB
 
 ```bash
-docker compose run --rm --no-deps epub-agent --limit 10 --dry-run
+docker compose run --rm --no-deps \
+  --entrypoint python \
+  epub-agent \
+  src/epub_metadata.py --limit 10 --dry-run
 ```
 
 - La commande appuie uniquement sur `--limit` et `--dry-run` ; tout le reste (webhook, root, log, TLS) vient de `.env`.
@@ -80,7 +69,7 @@ docker compose run --rm --no-deps epub-agent --limit 10 --dry-run
 
 ## Journaux et résultats
 
-Chaque EPUB traité ajoute une ligne JSON dans `EPUB_LOG_FILE` (ni `null`, ni rien):
+Chaque EPUB traité ajoute une ligne JSON dans `EPUB_LOG_FILE` :
 
 ```json
 {
@@ -90,8 +79,8 @@ Chaque EPUB traité ajoute une ligne JSON dans `EPUB_LOG_FILE` (ni `null`, ni ri
   "auteur": "...",
   "confiance": "0.81",
   "root": "G:/livres bruts",
-  "metadata": {"title":"","creator":""...},
-  "payload": {"filename":"MonLivre.epub","root":"G:/livres bruts",...}
+  "metadata": {"title": "", "creator": ""},
+  "payload": {"filename": "MonLivre.epub", "root": "G:/livres bruts"}
 }
 ```
 

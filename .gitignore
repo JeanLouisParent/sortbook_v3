@@ -1,10 +1,10 @@
-# Dépendances Python
+﻿# Dépendances Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .venv/
 
-# Donn?es locales mont?es dans les conteneurs
+# Données locales montées dans les conteneurs
 ollama_data/
 ebooks/
 log/
