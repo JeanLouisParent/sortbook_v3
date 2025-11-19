@@ -24,7 +24,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 import zipfile
 import xml.etree.ElementTree as ET
 
@@ -191,7 +191,7 @@ def extract_metadata_from_epub(epub_path: Path) -> dict:
     return metadata
 
 
-def call_n8n(payload: dict, *, test_mode: bool = False) -> dict | None:
+def call_n8n(payload: dict, *, test_mode: bool = False) -> dict[str, Any] | None:
     """
     Send data to the n8n webhook and return JSON response.
 
@@ -241,8 +241,8 @@ def call_n8n(payload: dict, *, test_mode: bool = False) -> dict | None:
                     }
                 return inner
 
-    # Fallback: return whatever was decoded, the caller will handle missing keys
-    return data
+    # Fallback: return empty dict so the caller can safely handle missing keys
+    return {}
 
 
 def slugify(text: str, max_length: int = 150) -> str:
@@ -291,7 +291,7 @@ def log_result(
 def process_epub(
     epub_path: Path,
     dry_run: bool = True,
-    confidence_min: str = "moyenne",
+    confidence_min: float = CONFIDENCE_MIN_DEFAULT,
     *,
     test_mode: bool = False,
 ) -> None:
@@ -382,8 +382,10 @@ def process_epub(
 def process_folder(
     folder: str | Path,
     dry_run: bool = True,
-    confidence_min: str = "moyenne",
+    confidence_min: float = CONFIDENCE_MIN_DEFAULT,
     limit: int | None = None,
+    *,
+    test_mode: bool = False,
 ) -> None:
     """Walk all EPUBs in a folder (recursively) and process them, with optional limit."""
     folder_path = Path(folder).expanduser()
@@ -399,7 +401,12 @@ def process_folder(
 
     for idx, epub_file in enumerate(files, start=1):
         print(f"[{idx}/{total}]")
-        process_epub(epub_file, dry_run=dry_run, confidence_min=confidence_min)
+        process_epub(
+            epub_file,
+            dry_run=dry_run,
+            confidence_min=confidence_min,
+            test_mode=test_mode,
+        )
         if limit is not None and idx >= limit:
             break
 
@@ -429,7 +436,7 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--test",
         action="store_true",
-        help="Utilise le webhook de test (sinon prod selon N8N_MODE).",
+        help="Utilise le webhook de test (sinon webhook de production).",
     )
     parser.add_argument(
         "--limit",
@@ -467,6 +474,7 @@ def main() -> None:
         dry_run=dry_run,
         confidence_min=args.confidence_min,
         limit=args.limit,
+        test_mode=args.test,
     )
     if dry_run:
         print("Mode simulation : passez --no-dry-run ou DRY_RUN=false pour renommer réellement.")
