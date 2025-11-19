@@ -14,3 +14,6 @@ log/
 .DS_Store
 *.log
 certs/
+database/*.sqlite
+n8n_data/*.sqlite
+dumps/

@@ -12,8 +12,8 @@ Configuration is read from environment variables (typically via .env):
 - EPUB_LOG_FILE       : log path (default: epub_results.log)
 - N8N_WEBHOOK_TEST_URL: n8n test webhook URL
 - N8N_WEBHOOK_PROD_URL: n8n prod webhook URL
-- N8N_MODE            : "test" or "prod" (default: prod)
 - N8N_VERIFY_SSL      : "true"/"false" or CA path (default: true)
+- N8N_TIMEOUT         : HTTP timeout in seconds (default: 120)
 - CONFIDENCE_MIN      : default confidence threshold (default: "moyenne")
 """
 
@@ -34,7 +34,6 @@ import requests
 DEFAULT_WEBHOOK_URL = "http://localhost:5678/webhook/epub-metadata"
 N8N_WEBHOOK_TEST_URL = os.environ.get("N8N_WEBHOOK_TEST_URL")
 N8N_WEBHOOK_PROD_URL = os.environ.get("N8N_WEBHOOK_PROD_URL")
-ENV_N8N_MODE = (os.environ.get("N8N_MODE") or "prod").strip().lower()
 N8N_WEBHOOK_URL = DEFAULT_WEBHOOK_URL
 
 _VERIFY_SSL_RAW = os.environ.get("N8N_VERIFY_SSL", "true").strip()
@@ -45,6 +44,10 @@ elif _VERIFY_SSL_RAW.lower() in {"1", "true", "yes", "oui"}:
 else:
     # Any other value is interpreted as a CA bundle / certificate path.
     VERIFY_SSL = _VERIFY_SSL_RAW
+try:
+    N8N_TIMEOUT = float(os.environ.get("N8N_TIMEOUT", "120"))
+except ValueError:
+    N8N_TIMEOUT = 120.0
 LOG_DIR = Path(os.environ.get("LOG_DIR") or os.getcwd())
 LOG_FILENAME = os.environ.get("EPUB_LOG_FILE", "n8n_response.json")
 LOG_PATH = LOG_DIR / LOG_FILENAME
@@ -62,13 +65,13 @@ def _parse_confidence(value: str | None, default: float) -> float:
 
 def _resolve_webhook_url(test_flag: bool) -> str:
     """
-    Choose webhook URL based on CLI flag and N8N_MODE.
+    Choose webhook URL based on CLI flag.
 
-    - If --test is passed OR N8N_MODE=test -> test webhook (if defined)
-    - Otherwise -> prod webhook (if defined)
+    - If --test is passed        -> test webhook (if defined)
+    - Otherwise (no --test)      -> prod webhook (if defined)
     - Fallbacks to DEFAULT_WEBHOOK_URL if nothing else is set.
     """
-    use_test = test_flag or ENV_N8N_MODE == "test"
+    use_test = test_flag
 
     if use_test and N8N_WEBHOOK_TEST_URL:
         return N8N_WEBHOOK_TEST_URL
@@ -188,16 +191,58 @@ def extract_metadata_from_epub(epub_path: Path) -> dict:
     return metadata
 
 
-def call_n8n(payload: dict) -> dict:
-    """Send data to the n8n webhook and return JSON response."""
+def call_n8n(payload: dict, *, test_mode: bool = False) -> dict | None:
+    """
+    Send data to the n8n webhook and return JSON response.
+
+    In normal mode (hors --test), this helper normalises several formats:
+    - dict déjà normalisé avec clés "titre"/"auteur"/... ;
+    - liste d’items avec dict "output" ;
+    - liste simple [{"title": "...", "author": "..."}] remappée vers titre/auteur.
+
+    En mode test (--test), aucune structure n’est imposée: la réponse brute est
+    simplement affichée dans la console et la fonction renvoie None.
+    """
     resp = requests.post(
         N8N_WEBHOOK_URL,
         json=payload,
-        timeout=30,
+        timeout=N8N_TIMEOUT,
         verify=VERIFY_SSL,
     )
     resp.raise_for_status()
-    return resp.json()
+
+    if test_mode:
+        print("  [n8n/test] Statut HTTP :", resp.status_code)
+        try:
+            print("  [n8n/test] Réponse brute du webhook :")
+            print(resp.text)
+        except Exception as exc:
+            print(f"  [n8n/test] Impossible d'afficher la réponse : {exc}")
+        return None
+
+    data = resp.json()
+
+    # Case 1: direct dict with expected keys
+    if isinstance(data, dict):
+        return data
+
+    # Case 2: list of items
+    if isinstance(data, list) and data:
+        first = data[0] or {}
+        if isinstance(first, dict):
+            # 2.a: dict avec "output"
+            inner = first.get("output") or first
+            if isinstance(inner, dict):
+                # 2.b: format simple title/author -> on remappe vers titre/auteur
+                if "title" in inner or "author" in inner:
+                    return {
+                        "titre": inner.get("title", ""),
+                        "auteur": inner.get("author", ""),
+                    }
+                return inner
+
+    # Fallback: return whatever was decoded, the caller will handle missing keys
+    return data
 
 
 def slugify(text: str, max_length: int = 150) -> str:
@@ -247,6 +292,8 @@ def process_epub(
     epub_path: Path,
     dry_run: bool = True,
     confidence_min: str = "moyenne",
+    *,
+    test_mode: bool = False,
 ) -> None:
     """Process a single EPUB: extract, call n8n, log, optionally rename."""
     print(f"Traitement de : {epub_path}")
@@ -267,9 +314,14 @@ def process_epub(
     }
 
     try:
-        result = call_n8n(payload)
+        result = call_n8n(payload, test_mode=test_mode)
     except Exception as exc:
         print(f"  Erreur lors de l'appel n8n : {exc}")
+        return
+
+    # En mode test, on ne traite pas le JSON retourné : l'objectif
+    # est seulement d'afficher la réponse brute du webhook.
+    if test_mode or result is None:
         return
 
     titre = str(result.get("titre") or "").strip() or "inconnu"
