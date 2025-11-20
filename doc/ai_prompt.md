@@ -38,9 +38,10 @@ Sortie attendue :
 Répond STRICTEMENT en JSON valide, sans texte avant ou après :
 
 {
-“titre”: “<titre ou "inconnu">”,
-“auteur”: “<auteur ou "inconnu">”,
-“confiance”: <nombre entre 0 et 1>
+“titre”: “<titre ou \"inconnu\">”,
+“auteur”: “<auteur ou \"inconnu\">”,
+“confiance”: <nombre entre 0 et 1>,
+"explication": "<explication ou \\\">\""
 }
 
 Données à analyser

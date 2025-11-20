@@ -59,22 +59,25 @@ Ensuite :
 
 ## n8n : variables d'environnement et modes
 
-Variables à définir (idéalement dans `.env`) :
+Ces variables définissent comment le script Python interagit avec votre instance n8n. Elles sont lues depuis l'environnement (par exemple, via un fichier `.env` à la racine du projet).
 
-- `N8N_WEBHOOK_PROD_URL` : URL du webhook n8n de production.
-- `N8N_WEBHOOK_TEST_URL` : URL du webhook n8n de test.
-- `N8N_VERIFY_SSL` : `false` pour désactiver TLS, ou chemin vers une CA/bundle (ex: `/certs/n8n.crt`).
-- `N8N_TIMEOUT` : délai max (secondes) pour l'appel HTTP (défaut 120).
+-   `N8N_WEBHOOK_PROD_URL` : URL du webhook n8n de production (utilisé par défaut).
+-   `N8N_WEBHOOK_TEST_URL` : URL du webhook n8n de test (utilisé avec l'argument CLI `--test`).
+-   `N8N_VERIFY_SSL` : Contrôle la vérification SSL des requêtes HTTP vers n8n.
+    -   `false`, `0`, `no`, `non` : Désactive la vérification SSL.
+    -   `true`, `1`, `yes`, `oui` (par défaut si non défini) : Active la vérification SSL.
+    -   Tout autre chemin : Spécifie un chemin vers un fichier de certificat CA personnalisé (par exemple, `/certs/n8n.crt`).
+-   `N8N_TIMEOUT` : Délai maximum en secondes pour l'appel HTTP au webhook n8n (par défaut `120.0`).
 
-Sélection de l'URL d'appel :
+**Sélection de l'URL d'appel :**
 
-- sans `--test` → `N8N_WEBHOOK_PROD_URL` si défini, sinon `http://localhost:5678/webhook/epub-metadata` ;
-- avec `--test` → `N8N_WEBHOOK_TEST_URL` si défini, sinon `http://localhost:5678/webhook/epub-metadata`.
+-   **Sans argument `--test`** : Le script utilise la `N8N_WEBHOOK_PROD_URL` si elle est définie. Sinon, il utilise l'URL par défaut `http://localhost:5678/webhook/epub-metadata`.
+-   **Avec argument `--test`** : Le script utilise la `N8N_WEBHOOK_TEST_URL` si elle est définie. Sinon, il utilise l'URL par défaut `http://localhost:5678/webhook/epub-metadata`.
 
 ## Pré‑requis locaux
 
-1. Python 3.11+
-2. `pip install -r requirements.txt`
+1.  Python 3.9+
+2.  Les dépendances Python installées (`pip install -r requirements.txt`).
 
 ## Lancer le script en local
 
@@ -82,30 +85,45 @@ Sélection de l'URL d'appel :
 python src/epub_metadata.py --folder /chemin/vers/mes/epub --dry-run --limit 5
 ```
 
-- `--dry-run` (par défaut) évite les renommages.
-- `--limit` permet de couper après X fichiers.
-- Les variables `EPUB_SOURCE_DIR`, `CONFIDENCE_MIN`, `N8N_WEBHOOK_*` se lisent depuis l'environnement.
+-   `--dry-run` : (par défaut si aucune option de renommage n'est active) évite les renommages effectifs des fichiers sur le disque.
+-   `--limit N` : Permet de limiter le traitement aux `N` premiers fichiers EPUB trouvés.
+-   `--folder PATH` : Spécifie le dossier à traiter. Si non fourni, le script utilise la variable d'environnement `EPUB_SOURCE_DIR` ou demande à l'utilisateur.
+-   `--confidence-min FLOAT` : Surcharge le seuil de confiance minimal défini par la variable d'environnement `CONFIDENCE_MIN`.
+-   `--test` : Active le mode test (utilise `N8N_WEBHOOK_TEST_URL`, affiche la réponse brute de n8n, pas de renommage).
 
-Pour passer en mode "production", lance simplement la commande **sans** `--dry-run`
-(et, si tu utilises la variable d'environnement, avec `DRY_RUN=false`).
+Les variables d'environnement (`EPUB_SOURCE_DIR`, `CONFIDENCE_MIN`, `N8N_WEBHOOK_*`, etc.) sont lues depuis l'environnement système ou un fichier `.env`.
+
+Pour passer en mode "production" et autoriser le renommage réel, lancez la commande **sans** l'argument `--dry-run` (et assurez-vous que `CONFIDENCE_MIN` est réglé au seuil désiré).
 
 ## Configuration centralisée (.env)
 
-Créez un fichier `.env` à la racine pour concentrer toutes les options (voir exemple dans le README).
+Il est fortement recommandé de créer un fichier `.env` à la racine de votre projet pour centraliser toutes les options de configuration. Un fichier `/.env.example` est fourni comme modèle.
 
-- `EPUB_ROOT` sert à monter les EPUB dans Docker et est transmis dans le payload (`root`).
-- `EPUB_DEST` pourra être utilisé plus tard pour déplacer les livres renommés (elle figure déjà dans le payload).
-- `LOG_DIR`/`EPUB_LOG_FILE` définissent où le log JSON est écrit dans le conteneur.
+Voici les variables d'environnement principales :
+
+-   **`EPUB_ROOT`** : Chemin local vers le dossier racine contenant vos EPUB. Ce chemin est monté dans le conteneur Docker de l'agent sur `/data`. Il est également transmis dans le `payload` envoyé à n8n sous la clé `root`.
+-   **`EPUB_SOURCE_DIR`** : Le chemin *à l'intérieur du conteneur* où le script s'attend à trouver les EPUB (doit correspondre au point de montage de `EPUB_ROOT`, généralement `/data`).
+-   **`EPUB_DEST`** : Chemin local vers le dossier de destination pour les EPUB renommés. Si non spécifié, les fichiers sont renommés sur place. Cette valeur est également incluse dans le `payload` n8n.
+-   **`LOG_DIR`** : Répertoire où sera stocké le fichier de log JSONL.
+-   **`EPUB_LOG_FILE`** : Nom du fichier de log JSONL (par défaut `n8n_response.json`).
+-   **`N8N_WEBHOOK_PROD_URL`**, **`N8N_WEBHOOK_TEST_URL`**, **`N8N_VERIFY_SSL`**, **`N8N_TIMEOUT`** : Voir la section précédente pour les détails de configuration de n8n.
+-   **`CONFIDENCE_MIN`** : Seuil de confiance minimal (float entre 0.0 et 1.0) requis pour qu'un fichier soit renommé automatiquement.
+-   **`DEFAULT_MAX_TEXT_CHARS`** : Nombre maximal de caractères de texte à extraire de l'EPUB pour l'analyse par n8n (par défaut `4000`).
+-   **`DEFAULT_SLUG_MAX_LENGTH`** : Longueur maximale pour les "slugs" générés pour les noms de fichiers (par défaut `150`).
+
+Ces variables garantissent que le script et les services Docker fonctionnent avec la même configuration.
 
 ## Via docker-compose
 
-`docker-compose.yml` lance :
+Le fichier `docker-compose.yml` configure une stack complète pour le projet :
 
-- **n8n** (port 5678) : webhook sécurisé avec TLS.
-- **ollama** (port 11434) : serveur local de modèles (désactivé par défaut, profil `ollama`).
-- **epub-agent** : conteneur Python qui lit `/data` et appelle n8n (scripts lancés à la main).
+-   **n8n** (port `5678`) : Le service d'orchestration des workflows, configuré pour utiliser HTTPS (si les certificats sont présents dans `./certs`).
+-   **ollama** (port `11434`) : Un serveur local de modèles LLM (optionnel, activé via un profil Docker Compose).
+-   **epub-agent** : Le conteneur Python qui exécute le script principal. Il est construit à partir de votre code local et configuré pour interagir avec n8n.
 
-Le service `epub-agent` monte automatiquement le chemin `EPUB_ROOT` et les certificats :
+### Configuration du service `epub-agent`
+
+Le service `epub-agent` est préconfiguré pour monter les volumes nécessaires :
 
 ```yaml
 epub-agent:
@@ -115,65 +133,97 @@ epub-agent:
     n8n:
       condition: service_started
   environment:
-    - EPUB_SOURCE_DIR=/data
+    - EPUB_SOURCE_DIR=/data # Le script recherche les EPUB ici, dans le conteneur.
   volumes:
-    - ${EPUB_ROOT:-./ebooks}:/data:rw
-    - .:/app:rw
-    - ./certs:/certs:ro
+    - ${EPUB_ROOT:-./ebooks}:/data:rw # Monte votre dossier local d'EPUB dans /data du conteneur.
+    - .:/app:rw                      # Monte le dossier racine du projet pour l'exécution du script.
+    - ./certs:/certs:ro              # Accès aux certificats pour la validation SSL.
 ```
 
-### Lancer la stack
+### Lancer la stack Docker Compose
+
+Pour démarrer n8n et l'agent Python :
 
 ```bash
-docker compose up --build
+docker compose up --build -d
 ```
 
-Par défaut, seuls n8n et `epub-agent` sont démarrés.  
-Pour démarrer aussi le conteneur Ollama :
+Pour inclure également le service Ollama (pour un LLM local) :
 
 ```bash
-docker compose --profile ollama up --build
+docker compose --profile ollama up --build -d
 ```
 
-> Recommandation : pour des raisons de fiabilité et de gestion des credentials (n8n, API, etc.),
-> il est conseillé d'installer Ollama "nativement" sur votre OS (Windows/macOS/Linux)
-> et de le connecter à n8n via `OLLAMA_HOST`, plutôt que d'utiliser systématiquement le conteneur Docker.
+> **Recommandation :** Pour des raisons de fiabilité et de gestion des ressources (GPU notamment), il est souvent préférable d'installer et de gérer Ollama directement sur votre machine hôte plutôt que d'utiliser la version conteneurisée. Vous pouvez ensuite configurer n8n pour se connecter à cette instance externe via `OLLAMA_HOST`.
 
-### Tester un lot limité d'EPUB
+### Tester le script dans le conteneur
+
+Vous pouvez exécuter le script `epub_metadata.py` directement à l'intérieur du conteneur `epub-agent` :
 
 ```bash
 docker compose exec epub-agent \
-  python src/epub_metadata.py --limit 10 --dry-run
+  python src/epub_metadata.py --limit 10 --dry-run --folder /data
 ```
 
-- La commande appuie uniquement sur `--limit` et `--dry-run` ; tout le reste (webhook, root, log, TLS) vient de `.env`.
+Notez que `--folder /data` indique au script de rechercher les EPUB dans le répertoire `/data` *à l'intérieur du conteneur*, qui est le point de montage de votre `EPUB_ROOT` local.
+
+La commande ci-dessus utilise `--limit` et `--dry-run` pour un test sûr. Toutes les autres configurations (URLs de webhook, chemins de log, seuils de confiance) sont automatiquement lues depuis les variables d'environnement configurées dans le `.env` de votre projet et passées au conteneur.
 
 ## Journaux et résultats
 
-Chaque EPUB traité ajoute une ligne JSON dans `EPUB_LOG_FILE` :
+Chaque EPUB traité génère une ligne au format JSONL dans le fichier de log spécifié par `EPUB_LOG_FILE` (`n8n_response.json` par défaut). Ce log contient toutes les informations pertinentes pour le suivi et l'analyse post-traitement :
 
 ```json
 {
   "filename": "MonLivre.epub",
-  "path": "/data/MonLivre.epub",
-  "titre": "...",
-  "auteur": "...",
+  "path": "/chemin/complet/vers/MonLivre.epub",
+  "titre": "Titre du livre",
+  "auteur": "Nom de l'auteur",
   "confiance": "0.81",
-  "root": "G:/livres bruts",
-  "metadata": {"title": "", "creator": ""},
-  "payload": {"filename": "MonLivre.epub", "root": "G:/livres bruts"}
+  "explication": "Correspondance trouvée via...",
+  "destination": "/chemin/de/destination/specifie",
+  "metadata": {
+    "title": "Titre OPF",
+    "creator": "Créateur OPF",
+    "publisher": "Éditeur OPF",
+    "language": "fr",
+    "identifier": "identifiant-unique",
+    "description": "Description de l'EPUB"
+  },
+  "payload": {
+    "filename": "MonLivre.epub",
+    "root": "/chemin/racine/des/epubs",
+    "destination": "/chemin/de/destination/specifie",
+    "text": "Extrait de texte envoyé à n8n...",
+    "metadata": { /* ... mêmes métadonnées que ci-dessus ... */ }
+  }
 }
 ```
 
-Tu peux ensuite consommer ce log pour alimenter n8n ou ton analyse.
+Ce fichier de log peut être ensuite utilisé pour alimenter d'autres systèmes, faire des analyses statistiques ou simplement pour vérifier le déroulement des opérations.
 
 ## Mode test vs normal
 
-- `--test` : le script n'attend pas de JSON particulier, affiche la réponse brute du webhook dans la console et n'applique pas de renommage.
-- Sans `--test` : la réponse doit être au format attendu (JSON structuré) pour alimenter la logique métier (extraction titre/auteur, seuil de confiance, renommage éventuel).
+Le script peut être exécuté en deux modes principaux en ce qui concerne l'interaction avec n8n :
 
-Formats acceptés hors `--test` :
+-   **Mode `--test`** :
+    -   Le script utilise l'URL de test (`N8N_WEBHOOK_TEST_URL`).
+    -   Il n'attend pas de format JSON particulier de la part de n8n et affiche la réponse brute du webhook directement dans la console.
+    -   Aucun renommage de fichier n'est effectué, quelle que soit la réponse.
+    Ce mode est idéal pour le débogage de vos workflows n8n.
 
-- Liste simple: `[{\"title\": \"...\", \"author\": \"...\"}]` → remappé vers `titre`/`auteur`.
-- Dict normalisé: `{ \"titre\": \"...\", \"auteur\": \"...\", \"confiance\": \"...\", \"explication\": \"...\" }`.
-- Liste avec `output`: `[{ \"output\": { ... } }]`.
+-   **Mode normal (sans `--test`)** :
+    -   Le script utilise l'URL de production (`N8N_WEBHOOK_PROD_URL`).
+    -   Il attend une réponse JSON structurée de n8n pour pouvoir en extraire les informations de renommage (`titre`, `auteur`, `confiance`, `explication`).
+    -   La logique métier de renommage (basée sur la confiance et le titre) est appliquée.
+
+**Formats de réponse n8n acceptés en mode normal :**
+
+Le script est flexible et peut interpréter plusieurs structures de réponse JSON pour en extraire un `EpubResult` (titre, auteur, confiance, explication) :
+
+-   **Format direct (recommandé) :** Un objet JSON contenant directement les clés `titre`, `auteur`, `confiance`, `explication`.
+-   **Clés alternatives `title`/`author` :** Si votre workflow renvoie `title` et `author` (en anglais) au lieu de `titre` et `auteur` (en français), elles seront automatiquement converties.
+-   **Format encapsulé (`output`) :** Un objet JSON contenant un sous-objet `output` qui contient lui-même les informations de renommage.
+-   **Format liste :** Le script peut également traiter une liste d'objets, en ne considérant que le premier élément. Ces objets peuvent être au format direct ou encapsulé.
+
+Pour des exemples détaillés de ces formats, veuillez consulter la section "Webhook n8n : Formats de réponse pris en charge" dans le `README.md` ou `AGENTS.md`.
