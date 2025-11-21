@@ -1,0 +1,1737 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un agent d'identification d'auteurs. Analyse UNIQUEMENT les données fournies (pas d'internet, pas de connaissances externes).\n\n## Entrées\n\n1. JSON Wikidata : {{ JSON.stringify($json.results) }}\n2. Fichier : {{ $('Script Python Webhook').item.json.body.filename }}\n3. Texte (4 pages) : {{ $('Script Python Webhook').item.json.body.pages_raw }}\n4. Metadata auteur : {{ $('Script Python Webhook').item.json.body.metadata.creator }}\n\n## Critères identification (par priorité)\n\n1. Occupations liées à l'écriture (writer, author, novelist, poet, journalist, essayist, biographer, philosopher, romancier, écrivain, dramaturge)\n2. Correspondance nom fichier avec label/fullName/aliases\n3. Mentions dans le texte (nom, contexte, langue, époque)\n4. ISNI présent (bonus de fiabilité)\n5. Si biographie : peut être la personne biographiée\n\n## Choix du meilleur nom\n\nCompare et choisis le nom le plus approprié parmi :\n- fullName de Wikidata\n- label de Wikidata\n- aliases de Wikidata\n- creator des metadata EPUB\n- nom extrait du fichier\n\nCritères de choix :\n- Forme la plus courante/reconnue\n- Cohérence avec metadata et fichier\n- Forme complète vs initiales (privilégie forme complète)\n- Usage principal identifié dans les sources\n\n## Sortie\n\nRetourne UNIQUEMENT ce JSON (aucun texte avant/après, aucun bloc code) :\n\n{\n  \"selected\": {\n    \"id\": \"Q12345\",\n    \"name\": \"Nom choisi le plus approprié\"\n  },\n  \"wikidataEntry\": {\n    \"id\": \"Q12345\",\n    \"label\": \"...\",\n    \"givenNames\": [...],\n    \"familyNames\": [...],\n    \"fullName\": \"...\",\n    \"aliases\": [...],\n    \"isni\": \"...\" ou null,\n    \"description\": \"...\",\n    \"occupations\": [...]\n  }\n}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -1360,
+        912
+      ],
+      "id": "86429f4e-11f4-4728-9aaf-790680956b2e",
+      "name": "AI Agent",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "notesInFlow": false,
+      "executeOnce": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {
+          "format": "default"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -1440,
+        1936
+      ],
+      "id": "87b160fc-1bec-4cd6-b2ce-1637b890fd81",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"type\": \"object\",\n  \"required\": [\"selected\", \"wikidataEntry\"],\n  \"properties\": {\n    \"selected\": {\n      \"type\": \"object\",\n      \"required\": [\"id\", \"name\"],\n      \"properties\": {\n        \"id\": {\n          \"type\": \"string\",\n          \"pattern\": \"^Q[0-9]+$\",\n          \"description\": \"Identifiant Wikidata\"\n        },\n        \"name\": {\n          \"type\": \"string\",\n          \"description\": \"Nom choisi comme le plus approprié pour l'auteur\"\n        }\n      },\n      \"additionalProperties\": false\n    },\n    \"wikidataEntry\": {\n      \"type\": \"object\",\n      \"required\": [\"id\", \"label\", \"givenNames\", \"familyNames\", \"fullName\", \"aliases\", \"description\", \"occupations\"],\n      \"properties\": {\n        \"id\": {\n          \"type\": \"string\",\n          \"pattern\": \"^Q[0-9]+$\",\n          \"description\": \"Identifiant Wikidata\"\n        },\n        \"label\": {\n          \"type\": \"string\",\n          \"description\": \"Nom principal\"\n        },\n        \"givenNames\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          },\n          \"description\": \"Prénoms\"\n        },\n        \"familyNames\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          },\n          \"description\": \"Noms de famille\"\n        },\n        \"fullName\": {\n          \"type\": \"string\",\n          \"description\": \"Nom complet\"\n        },\n        \"aliases\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          },\n          \"description\": \"Variantes et pseudonymes\"\n        },\n        \"isni\": {\n          \"type\": [\"string\", \"null\"],\n          \"description\": \"Identifiant ISNI\"\n        },\n        \"description\": {\n          \"type\": \"string\",\n          \"description\": \"Description\"\n        },\n        \"occupations\": {\n          \"type\": \"array\",\n          \"items\": {\n            \"type\": \"string\"\n          },\n          \"description\": \"Occupations\"\n        }\n      },\n      \"additionalProperties\": false\n    }\n  },\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -1136,
+        2272
+      ],
+      "id": "521d0c37-1813-41e0-b9ce-6b8a6bf31f7a",
+      "name": "Structured Output Parser",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "bce0bc7e-22d1-4c9c-ae5b-7c1bd30286b9",
+              "leftValue": "={{ $json.results[0].id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1936,
+        1216
+      ],
+      "id": "f117f205-5b13-4585-a8a8-7eca2c03b36f",
+      "name": "If",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -1296,
+        2144
+      ],
+      "id": "9b8d72d2-e62d-4b0d-b8a2-db6eaa81e00a",
+      "name": "Ollama Chat Model1",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "epub-metadata",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "status",
+                "value": "ok"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -4256,
+        608
+      ],
+      "id": "077e67b7-bb33-4118-8b1e-d7bb1c0efe5c",
+      "name": "Script Python Webhook",
+      "webhookId": "a036845e-dfec-4092-b66d-8b7881c1ff09"
+    },
+    {
+      "parameters": {
+        "jsCode": "const fileName = $('Script Python Webhook').first().json.body.filename;\nconst metadataName = $('Script Python Webhook').first().json.body.metadata.creator\n\nif (!metadataName || String(metadataName).trim() === \"\") {\n  return [{\n    json: {\n      status: false,\n      reason: \"metadata is empty\",\n      errorCode: \"no_auteur_metadata\"\n    }\n  }];\n}\n\nconst fileLower = fileName.toLowerCase();\nlet cleaned = String(metadataName).replace(/\\s+/g, \" \").trim();\n\n// Extraire prénom / nom en éliminant définitivement les virgules\nlet firstName = \"\";\nlet lastName = \"\";\n\nif (cleaned.includes(\",\")) {\n  const parts = cleaned.split(\",\").map(p => p.trim()).filter(Boolean);\n  if (parts.length < 2) {\n    return [{\n      json: {\n        status: false,\n        reason: \"metadata cannot be split around comma\",\n        errorCode: \"invalid_metadata_format\"\n      }\n    }];\n  }\n  lastName = parts[0];\n  firstName = parts.slice(1).join(\" \");\n} else {\n  const parts = cleaned.split(\" \").filter(Boolean);\n  if (parts.length < 2) {\n    return [{\n      json: {\n        status: false,\n        reason: \"metadata cannot be split into first and last name\",\n        errorCode: \"invalid_metadata_format\"\n      }\n    }];\n  }\n  firstName = parts[0];\n  lastName = parts.slice(1).join(\" \");\n}\n\n// Auteur final formaté → toujours \"Prénom Nom\"\nconst auteurFinal = `${firstName} ${lastName}`.trim();\n\n// Variants lowercase pour recherche dans filename\nconst v1 = `${firstName} ${lastName}`.toLowerCase();\nconst v2 = `${lastName} ${firstName}`.toLowerCase();\nconst v3 = `${lastName}, ${firstName}`.toLowerCase();\n\nlet status = false;\nlet reason = \"\";\nlet errorCode = \"no_match_in_filename\";\n\n// --- Matching ---\nif (fileLower.includes(v1)) {\n  status = true;\n  reason = \"match in filename (Prénom Nom)\";\n} else if (fileLower.includes(v2)) {\n  status = true;\n  reason = \"match in filename (Nom Prénom)\";\n} else if (fileLower.includes(v3)) {\n  status = true;\n  reason = \"match in filename (Nom, Prénom)\";\n} else {\n  status = false;\n  reason = \"metadata does not match filename\";\n}\n\n// --- Extraction du TITRE ---\nlet raw = fileName.replace(/\\.[^.]+$/, \"\");\nraw = raw.replace(/[_+]/g, \" \");\n\nlet titleExtracted = raw;\n\nconst patterns = [\n  v1,\n  v2,\n  v3\n];\n\nfor (const p of patterns) {\n  if (p && raw.toLowerCase().includes(p)) {\n    titleExtracted = raw.toLowerCase().replace(p, \"\");\n  }\n}\n\n// Nettoyage final\ntitleExtracted = titleExtracted\n  .replace(/[-–—]/g, \" \")\n  .replace(/\\s{2,}/g, \" \")\n  .trim();\n\n// Si vide → inconnu\nif (!titleExtracted || titleExtracted.length < 2) {\n  titleExtracted = \"inconnu\";\n}\n\nreturn [{\n  json: {\n    status,\n    reason,\n    auteur: auteurFinal,\n    titre: titleExtracted,\n    ...(status ? {} : { errorCode })\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3536,
+        720
+      ],
+      "id": "be18f679-8946-4c67-b32a-12195f917e62",
+      "name": "JS getName"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un agent d'extraction de titre de livre.\n\nTa mission : déterminer le meilleur titre à partir des données fournies, en te basant d'abord sur le CONTENU du livre, puis en comparant avec le nom de fichier et les métadonnées.\n\n================= ENTRÉES =================\n\n1. Nom fichier : {{ $('Script Python Webhook').item.json.body.filename }}\n2. Nom auteur : {{ ($json.output.selected.name || $('If2').item.json.author) }}\n3. Titre metadata : {{ $('Script Python Webhook').item.json.body.metadata.title }}\n4. Texte (5 pages) : {{ $('Script Python Webhook').item.json.body.pages_raw }}\n\n================= RÔLE GÉNÉRAL =================\n\n1) Analyser PRIORITAIREMENT le contenu des 5 premières pages pour deviner le titre réel.\n2) Comparer ce titre aux deux autres sources :\n   - Titre extrait du nom de fichier (après retrait de l'auteur)\n   - Titre des métadonnées EPUB\n3) Choisir le meilleur titre global selon des règles claires.\n4) Toujours renvoyer la structure JSON demandée, sans texte en plus.\n\nTu n’as PAS le droit d’utiliser Internet ou des connaissances externes : tu te bases UNIQUEMENT sur les 4 entrées ci-dessus.\n\n================= ÉTAPE 1 : ANALYSE DU CONTENU (pages_raw) =================\n\nLe contenu est ta source PRINCIPALE.\n\nÀ partir de {{ $('Script Python Webhook').item.json.body.pages_raw }}, essaye de repérer un titre probable en utilisant ces indices :\n\n- Lignes courtes, mises en avant, souvent :\n  - en majuscules ou Capitalisation de Titre,\n  - centrées ou isolées dans le texte,\n  - répétées dans les premières pages (ex. couverture, page de titre).\n- Présence proche de l’auteur : si le nom auteur apparaît près d’une ligne, l’autre ligne est souvent le titre.\n- Ignorer le plus possible :\n  - \"Chapitre 1\", \"Table des matières\", \"Prologue\", \"Remerciements\", etc.\n  - Mentions techniques (\"Édition\", \"Collection\", \"ISBN\", \"Copyright\", \"Tous droits réservés\"...).\n- Si plusieurs candidats :\n  - Privilégie celui qui ressemble le plus à un vrai titre (pas trop long, pas une phrase complète, pas une liste).\n  - Privilégie celui qui réapparaît (ex. en haut d’une page, sur plusieurs pages).\n\nAppelle ce résultat : `titre_contenu` (il reste interne à ton raisonnement, tu ne l’affiches pas tel quel).\n\n================= ÉTAPE 2 : EXTRACTION TITRE DEPUIS LE NOM DE FICHIER =================\n\nLe format habituel est : `Titre - Auteur.ext`\n\n1) Utilise **le nom auteur** fourni :\n   {{ ($json.output.selected.name || $('If2').item.json.author) }}\n   - Décompose-le en variantes : prénom, nom, initiales, ordre inversé (Nom Prénom, Prénom Nom, N. Nom, Nom N., etc.).\n   - Cherche ces variantes dans le nom de fichier (en ignorant les différences de casse, d’accents et quelques ponctuations).\n\n2) Une fois l’auteur localisé dans le nom de fichier :\n   - Retire complètement la partie correspondant à l’auteur.\n   - Retire les tirets ou séparateurs immédiatement autour de l’auteur.\n   - Nettoie les espaces superflus.\n\n3) Si tu n’es pas sûr à 100 % d’où commence l’auteur :\n   - Utilise la règle de repli : considère que le titre est **tout ce qu’il y a avant le dernier tiret** du nom de fichier.\n   - Conserve la casse, les accents et caractères spéciaux du titre initial.\n\nAppelle ce résultat : `titre_fichier`.\n\n================= ÉTAPE 3 : TITRE MÉTADATA =================\n\nPrends aussi en compte :\n\n- `titre_metadata` = {{ $('Script Python Webhook').item.json.body.metadata.title }}\n\nNettoyage léger autorisé :\n- Retirer seulement les éléments manifestement hors titre : numéros de collection, mentions type \"EPUB\", \"[Scan]\" si clairement séparés.\n- Ne pas trop normaliser : garde la casse et les caractères spéciaux utiles.\n\n================= ÉTAPE 4 : CHOIX FINAL DU TITRE =================\n\nL’objectif est de choisir le **meilleur titre unique** parmi :\n- `titre_contenu` (contenu)\n- `titre_fichier` (nom de fichier)\n- `titre_metadata` (metadata)\n\nRègles de décision (dans cet ordre d’importance) :\n\n1) PRIORITÉ AU CONTENU\n   - Si `titre_contenu` est clair et cohérent avec le texte (réapparaît, proche de l’auteur, typiquement placé comme un titre) :\n     - Compare `titre_contenu` avec `titre_fichier` et `titre_metadata` en ignorant :\n       - casse, accents, ponctuation mineure.\n     - Si l’un des deux (fichier ou metadata) est une simple variante orthographique de `titre_contenu` :\n       -> Choisis la version la plus complète / propre typographiquement.\n         (Par exemple, garde les sous-titres, les deux points, etc.)\n\n2) SI LE CONTENU EST AMBIGU OU PEU EXPLOITABLE\n   - Tu compares surtout `titre_fichier` et `titre_metadata`.\n   - Poids par défaut : environ **90% fichier / 10% metadata** :\n     - Tu préfères `titre_fichier` si :\n       - Il ne semble pas tronqué.\n       - Il n’est pas manifestement parasité par des infos techniques (scan, édition, etc.).\n     - Tu peux préférer `titre_metadata` si :\n       - `titre_fichier` ne semble jamais apparaître dans le texte alors que `titre_metadata` ou une variante, oui.\n       - `titre_metadata` est clairement plus complet ou cohérent avec le contenu (ex. présence d’un sous-titre important mentionné dans les pages).\n\n3) CAS OÙ LE CONTENU CONFIRME UN TITRE\n   - Si le texte des pages contient UNE variante du titre (fichier ou metadata) de manière claire (couverture, page de titre, etc.) :\n     -> Choisis **celle qui est la plus proche de ce qui apparaît réellement dans le texte**, même si ce n’est pas exactement identique.\n\n4) CAS D’ÉCHEC\n   - Si tu ne peux extraire aucun titre plausible (contenu inutilisable, fichier illisible, metadata vide ou complètement incohérente) :\n     -> Mets `\"titre\": \"inconnu\"` et explique brièvement pourquoi dans `reason`.\n\n================= SORTIE =================\n\nTu dois retourner UNIQUEMENT ce JSON, sans aucun texte avant, après, ni mise en forme supplémentaire :\n\n{\n  \"auteur\" : \"<passthrough de ce que tu recois>\",\n  \"titre\": \"<titre_choisi>\",\n  \"reason\": \"<explication_courte_du_choix>\"\n}\n\nContraintes :\n\n- `\"auteur\"` doit être **exactement** le contenu reçu en entrée (le champ 2), sans le modifier.\n- `\"titre\"` est le meilleur titre que tu as déterminé selon les règles ci-dessus.\n- `\"reason\"` : phrase courte (une ou deux phrases maximum) qui explique pourquoi ce titre a été choisi (par ex. \"titre trouvé sur la page de titre et cohérent avec le nom de fichier\", ou \"metadata non cohérente, fichier et contenu confirment ce titre\", etc.).",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -784,
+        896
+      ],
+      "id": "db04740a-8755-4480-85ee-14d4ae94eb6a",
+      "name": "AI Agent2",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "notesInFlow": false,
+      "executeOnce": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {
+          "format": "default"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -880,
+        1152
+      ],
+      "id": "9c13c0f4-bb6e-4b57-8899-377ac85f39d8",
+      "name": "Ollama Chat Model4",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"title\": \"ExtractedBookTitle\",\n  \"type\": \"object\",\n  \"required\": [\"titre\", \"reason\"],\n  \"properties\": {\n    \"auteur\": {\n      \"type\": \"string\",\n      \"description\": \"Passthrough de la valeur reçue\"\n    },\n    \"titre\": {\n      \"type\": \"string\",\n      \"description\": \"Titre du livre déduit à partir du nom de fichier.\"\n    },\n    \"reason\": {\n      \"type\": \"string\",\n      \"description\": \"Explication (en français) justifiant la méthode utilisée pour extraire le titre.\"\n    }\n  },\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -608,
+        1360
+      ],
+      "id": "907e5696-c067-48ee-bd91-b628d3049e7a",
+      "name": "Structured Output Parser2",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        -1280,
+        2064
+      ],
+      "id": "d92db795-2c18-484f-898a-7649ad2fa71e",
+      "name": "Auto-fixing Output Parser"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        -752,
+        1152
+      ],
+      "id": "29410700-71cf-4fcb-911f-056971c53ab1",
+      "name": "Auto-fixing Output Parser1"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -736,
+        1360
+      ],
+      "id": "a54fbec5-8fc3-486b-b76d-7df83ef0283a",
+      "name": "Ollama Chat Model5",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        -5152,
+        1264
+      ],
+      "id": "d425671d-0c1e-4a34-b72e-7d98d874b257",
+      "name": "Auto-fixing Output Parser2"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -5136,
+        1472
+      ],
+      "id": "1026a92d-3bee-4caf-bb09-08df66e9a9c0",
+      "name": "Ollama Chat Model3",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"http://json-schema.org/draft-07/schema#\",\n  \"title\": \"ChoixAuteur\",\n  \"type\": \"object\",\n  \"properties\": {\n    \"auteur\": {\n      \"type\": \"string\",\n      \"description\": \"Nom de l'auteur choisi ou 'inconnu' si aucun auteur fiable n'a pu être déterminé.\"\n    },\n    \"explication\": {\n      \"type\": \"string\",\n      \"maxLength\": 200,\n      \"description\": \"Explication courte du choix de l'auteur (source principale et justification).\"\n    }\n  },\n  \"required\": [\n    \"auteur\",\n    \"explication\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -5008,
+        1472
+      ],
+      "id": "5c57e0da-844a-4978-a40b-25d6229543c7",
+      "name": "Structured Output Parser1",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {
+          "format": "default"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -5280,
+        1264
+      ],
+      "id": "6c8416bf-ca64-452b-bc3a-3973f96cfcdb",
+      "name": "Ollama Chat Model2",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=[ENTRÉES N8N — À REMPLIR]\n\nAuteur_metadata : {{ $('Script Python Webhook').item.json.body.metadata.creator }}\nNom_fichier     : {{ $('Script Python Webhook').item.json.body.filename }}\nTexte_livre     : {{ $('Script Python Webhook').item.json.body.text }}\n\n----------------------------------------\nRÔLE\n----------------------------------------\nTu es un agent qui doit CHOISIR le meilleur auteur d’un livre numérique.\n\nContexte garanti :\n- Les metadata contiennent un auteur (Auteur_metadata).\n- Cet auteur NE correspond PAS clairement au Nom_fichier.\n- Tu dois utiliser Auteur_metadata, Nom_fichier et Texte_livre UNIQUEMENT (aucun accès Internet).\n\n----------------------------------------\nOBJECTIF\n----------------------------------------\nDécider si :\n1) Garder l’Auteur_metadata.\n2) Ignorer l’Auteur_metadata et deviner un auteur à partir du Nom_fichier.\n3) Ignorer l’Auteur_metadata et deviner un auteur à partir du Texte_livre.\n4) Ou retourner \"inconnu\" si rien n’est fiable.\n\n----------------------------------------\nRÈGLES DE DÉCISION (RÉSUMÉ)\n----------------------------------------\n1) PRIORITÉ AU TEXTE (Texte_livre)\n   - Si l’Auteur_metadata apparaît dans les premières pages comme auteur évident :\n     • Page de titre, mention \"par <nom>\", copyright, biographie claire, etc.\n     → Choisis Auteur_metadata.\n   - Si un autre nom apparaît de façon très forte comme auteur (page de titre, \"par <nom>\", \"roman de <nom>\"):\n     → Choisis ce nom de TEXTE, même s’il contredit l’Auteur_metadata.\n\n2) NOM DE FICHIER (Nom_fichier)\n   - Si Nom_fichier contient un nom propre qui ressemble fortement à un auteur (avant extension .epub, .mobi, etc.)\n     et que ce nom se retrouve aussi dans le Texte_livre de façon cohérente (titre, auteur, biographie, etc.) :\n     → Choisis ce nom.\n   - Si Nom_fichier contient plusieurs noms possibles, choisis celui qui est renforcé par le TEXTE.\n   - Si le Nom_fichier contient un nom plausible mais que le TEXTE ne le confirme pas du tout,\n     utilise ce nom uniquement si Auteur_metadata semble totalement incohérent (ex: maison d’édition, collection, etc.).\n\n3) MAUVAIS AUTEUR_METADATA\n   - Considère qu’Auteur_metadata est peu fiable s’il ressemble à :\n     • Nom d’éditeur, collection, organisation, plateforme, librairie…\n     • Chaîne technique ou pseudo manifestement non humain.\n   - Dans ce cas, tente de trouver un auteur dans le TEXTE, sinon dans le Nom_fichier.\n   - Si aucun auteur clair n’est trouvé : \"inconnu\".\n\n4) CAS \"INCONNU\"\n   - Si aucun nom ne se dégage clairement ni du TEXTE ni du Nom_fichier\n     → auteur = \"inconnu\".\n\n----------------------------------------\nSORTIE\n----------------------------------------\nTu dois retourner STRICTEMENT un JSON valide au format :\n\n{\n  \"auteur\": \"<nom choisi ou \\\"inconnu\\\">\",\n  \"explication\": \"<une phrase courte qui explique le choix, max 200 caractères>\"\n}\n\nNe rajoute aucun autre champ ni texte hors JSON.",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -5248,
+        1104
+      ],
+      "id": "914122d1-627c-4707-bf86-67fbe8e7f2fa",
+      "name": "AI Agent1",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "notesInFlow": false,
+      "executeOnce": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ef0781de-ecaf-46ac-b955-a1dcb4d8abd8",
+              "name": "auteur",
+              "value": "={{ $json.output.auteur }}",
+              "type": "string"
+            },
+            {
+              "id": "f46fb056-ace1-4e7e-9e05-0b5512d7e270",
+              "name": "titre",
+              "value": "={{ $json.output.titre }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3168,
+        704
+      ],
+      "id": "b8f3dcc5-901c-40d9-b973-ff130a6eb4ad",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "jsCode": "const name = $('If4').first().json.auteur;\nconst API_BASE = 'https://www.wikidata.org/w/api.php';\n\nasync function http(url) {\n  return await this.helpers.httpRequest({\n    method: 'GET',\n    url,\n    json: true,\n  });\n}\n\nasync function searchEntitiesByName(name, limit = 10) {\n  const url =\n    `${API_BASE}?action=wbsearchentities` +\n    `&format=json&language=fr&type=item` +\n    `&search=${encodeURIComponent(name)}` +\n    `&limit=${limit}`;\n  const data = await http.call(this, url);\n  return data.search || [];\n}\n\nasync function fetchEntities(ids) {\n  if (!ids.length) return {};\n  const url =\n    `${API_BASE}?action=wbgetentities` +\n    `&format=json&languages=fr|en` +\n    `&props=labels|aliases|descriptions|claims` +\n    `&ids=${ids.join('|')}`;\n  const data = await http.call(this, url);\n  return data.entities || {};\n}\n\nfunction bestLabel(entity) {\n  if (entity.labels?.fr) return entity.labels.fr.value;\n  if (entity.labels?.en) return entity.labels.en.value;\n  const keys = Object.keys(entity.labels || {});\n  return keys.length ? entity.labels[keys[0]].value : null;\n}\n\nfunction description(entity) {\n  if (entity.descriptions?.fr) return entity.descriptions.fr.value;\n  if (entity.descriptions?.en) return entity.descriptions.en.value;\n  const keys = Object.keys(entity.descriptions || {});\n  return keys.length ? entity.descriptions[keys[0]].value : null;\n}\n\nfunction aliases(entity) {\n  const out = [];\n  for (const lang of ['fr', 'en']) {\n    if (entity.aliases?.[lang]) {\n      for (const a of entity.aliases[lang]) out.push(a.value);\n    }\n  }\n  return [...new Set(out)];\n}\n\nfunction claimIds(entity, prop) {\n  return (entity.claims?.[prop] || [])\n    .map(c => c.mainsnak?.datavalue)\n    .filter(v => v?.value?.id)\n    .map(v => v.value.id);\n}\n\nfunction claimStrings(entity, prop) {\n  return (entity.claims?.[prop] || [])\n    .map(c => c.mainsnak?.datavalue)\n    .filter(v => v?.type === 'string')\n    .map(v => v.value);\n}\n\nfunction uniq(arr) {\n  return [...new Set(arr)];\n}\n\nasync function run(name) {\n  const search = await searchEntitiesByName.call(this, name, 10);\n  const ids = search.map(r => r.id);\n  const entities = await fetchEntities.call(this, ids);\n\n  let extraIds = [];\n  for (const id of ids) {\n    const ent = entities[id];\n    if (!ent) continue;\n    extraIds.push(\n      ...claimIds(ent, 'P735'),\n      ...claimIds(ent, 'P734'),\n      ...claimIds(ent, 'P106'),\n    );\n  }\n\n  extraIds = uniq(extraIds);\n  const extras = await fetchEntities.call(this, extraIds);\n\n  const labelMap = {};\n  for (const [eid, ent] of Object.entries(extras)) {\n    labelMap[eid] = bestLabel(ent);\n  }\n\n  const out = [];\n\n  for (const id of ids) {\n    const ent = entities[id];\n    if (!ent) continue;\n\n    const given = claimIds(ent, 'P735').map(e => labelMap[e]).filter(Boolean);\n    const family = claimIds(ent, 'P734').map(e => labelMap[e]).filter(Boolean);\n    const occupations = claimIds(ent, 'P106').map(e => labelMap[e]).filter(Boolean);\n    const isni = claimStrings(ent, 'P213')[0] || null;\n\n    out.push({\n      id,\n      label: bestLabel(ent),\n      givenNames: given,\n      familyNames: family,\n      fullName: [...given, ...family].join(' ').trim(),\n      aliases: aliases(ent),\n      isni,\n      description: description(ent),\n      occupations,\n    });\n  }\n\n  return out;\n}\n\nreturn (async () => {\n  if (!name) {\n    return [{ json: { error: \"Missing variable 'name' from n8n\" } }];\n  }\n\n  const results = await run.call(this, name);\n\n  return [{\n    json: {\n      input: name,\n      count: results.length,\n      results,\n    },\n  }];\n})();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2160,
+        1232
+      ],
+      "id": "c0b0f592-77c9-4659-a85b-a08633302f37",
+      "name": "getAuthorsDataWikidata"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "25ff33bb-3110-4b85-b73b-6dfccf9bdb98",
+                    "leftValue": "={{ $('JS getName').item.json.reason }}",
+                    "rightValue": "metadata is empty",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "empty_metadata"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "104bfda3-d6e6-4b60-900d-f2ebf4af93cc",
+                    "leftValue": "={{ $('JS getName').item.json.reason }}",
+                    "rightValue": "metadata does not match filename",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "no_match_metadata"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -5504,
+        1040
+      ],
+      "id": "37dfc65f-11d1-4508-a12f-a657c45fb8a0",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un agent d'extraction de titre de livre.\n\n## Entrées\n\n1. Nom fichier : {{ $('Script Python Webhook').item.json.body.filename }}\n2. Nom auteur : {{ $input.first().json.input }}\n3. Titre metadata : {{ $('Script Python Webhook').item.json.body.metadata.title }}\n4. Texte (4 pages) : {{ $('Script Python Webhook').item.json.body.text }}\n\n## Objectif\n\nDéterminer le meilleur titre en comparant :\n- Titre extrait du nom de fichier (après retrait de l'auteur)\n- Titre des metadata EPUB\n\n## Règles extraction fichier\n\n- Format habituel : `Titre - Auteur.ext`\n- Utilise le nom auteur pour identifier et retirer l'auteur (prénom, nom, initiales, variantes)\n- Retire l'auteur et les séparateurs (tirets, espaces superflus)\n- Conserve la casse et caractères spéciaux du titre original\n- Si doute : titre = texte avant dernier tiret\n\n## Règles de choix\n\nPriorité 65% metadata / 35% fichier :\n- Si metadata existe et semble valide : privilégie-le\n- Si metadata absent/incomplet/générique : utilise fichier\n- Si fichier plus précis/complet : peut primer sur metadata\n- Si impossible de trancher : utilise le texte des 4 pages (page de titre, mentions explicites) en dernier recours\n\n## Sortie\n\nRetourne UNIQUEMENT ce JSON (aucun texte avant/après, aucun bloc code) :\n\n{\n  \"auteur\" : \"<passthrough de ce que tu recois>\",\n  \"titre\": \"<titre_choisi>\",\n  \"reason\": \"<explication_courte_du_choix>\"\n}",
+        "hasOutputParser": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -688,
+        2032
+      ],
+      "id": "8743edc5-39e1-4de3-be84-fd7798b8d8a1",
+      "name": "AI Agent3",
+      "alwaysOutputData": false,
+      "retryOnFail": true,
+      "notesInFlow": false,
+      "executeOnce": false,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {
+          "format": "default"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        2256
+      ],
+      "id": "5c2c7bf6-2351-4ac1-ab8e-bca9cfdc616f",
+      "name": "Ollama Chat Model6",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"$schema\": \"https://json-schema.org/draft/2020-12/schema\",\n  \"title\": \"ExtractedBookTitle\",\n  \"type\": \"object\",\n  \"required\": [\"titre\", \"reason\"],\n  \"properties\": {\n    \"auteur\": {\n      \"type\": \"string\",\n      \"description\": \"Passthrough de la valeur reçue\"\n    },\n    \"titre\": {\n      \"type\": \"string\",\n      \"description\": \"Titre du livre déduit à partir du nom de fichier.\"\n    },\n    \"reason\": {\n      \"type\": \"string\",\n      \"description\": \"Explication (en français) justifiant la méthode utilisée pour extraire le titre.\"\n    }\n  },\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        -448,
+        2464
+      ],
+      "id": "7e4d636d-8b32-451a-a78f-7bb02930e0d7",
+      "name": "Structured Output Parser3",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserAutofixing",
+      "typeVersion": 1,
+      "position": [
+        -592,
+        2256
+      ],
+      "id": "cabfbdcc-5d81-4461-935d-f69ed468d56e",
+      "name": "Auto-fixing Output Parser3"
+    },
+    {
+      "parameters": {
+        "model": "qwen2.5:7b-instruct",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        2464
+      ],
+      "id": "886f54f2-af29-4080-a279-3a7d3281e724",
+      "name": "Ollama Chat Model7",
+      "credentials": {
+        "ollamaApi": {
+          "id": "9h1vWwj3eTQZoSfy",
+          "name": "Ollama Geonosis"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "6b0fa108-8d91-42b4-8796-f32d3624e140",
+              "name": "auteur",
+              "value": "={{ $json.output.auteur }}",
+              "type": "string"
+            },
+            {
+              "id": "184a0ae0-4fae-46d7-a854-e9a873905095",
+              "name": "explication",
+              "value": "={{ $json.output.explication }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -4784,
+        1040
+      ],
+      "id": "f43d67bc-543b-445e-bc5d-1362660ed7ff",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/books/v1/volumes?q=isbn:{{ $json.body.isbn }}",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (compatible; MyBot/1.0; +https://example.com/bot)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3488,
+        304
+      ],
+      "id": "fa88c9b9-129c-4f39-ba2d-676e3a4c7f8d",
+      "name": "Google Books API",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "98ee02aa-30e5-467a-984d-77ffedb9455e",
+              "leftValue": "={{ $json.body.isbn }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "d0e6911e-3869-4f18-8338-d637e025de45",
+              "leftValue": "={{ $json.body.isbn }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -4064,
+        608
+      ],
+      "id": "908c31d2-40ab-4146-93b9-ab98a231eb41",
+      "name": "ISBN not_null"
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "items",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -3136,
+        288
+      ],
+      "id": "47e9ffe4-8528-4e6d-a376-e2dc019c3278",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "67c65f46-9ce0-45ee-8fd1-099bf5ec3c49",
+              "leftValue": "={{ $json.volumeInfo.industryIdentifiers }}",
+              "rightValue": "={{ $('Script Python Webhook').item.json.body.isbn }}",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -2992,
+        288
+      ],
+      "id": "a62a320c-eb12-4f2a-9c4d-cf598b2e8227",
+      "name": "Filter",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        544,
+        560
+      ],
+      "id": "150076d2-6172-4ade-b123-afbb2a1784ac",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "17ca69e8-acfa-4a79-bc18-a098496e456a",
+              "leftValue": "={{ $json.totalItems }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3376,
+        304
+      ],
+      "id": "bd33c22d-1887-4ac2-87f2-50551b53f8d6",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "17ca69e8-acfa-4a79-bc18-a098496e456a",
+              "leftValue": "={{ $json.isbn_13 }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "faec0fbc-505e-4355-9d94-f878e110af1c",
+              "leftValue": "={{ $json.isbn_10 }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3104,
+        448
+      ],
+      "id": "7507549d-fc0c-49ce-bbb0-cc2bbd66e720",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "05c231bd-0c61-42b8-9116-10c5f9cfe92d",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "e49b73e1-7cba-4d06-a51c-a01014afdc48",
+              "name": "creator",
+              "value": "={{ $json.creator }}",
+              "type": "string"
+            },
+            {
+              "id": "8e574aee-1b05-439e-bd66-03c47fd12343",
+              "name": "identifier",
+              "value": "={{ $json.identifier }}",
+              "type": "array"
+            },
+            {
+              "id": "e657cba5-8b9b-4634-b9ce-77383032c2ce",
+              "name": "language",
+              "value": "={{ $json.language }}",
+              "type": "string"
+            },
+            {
+              "id": "285884e9-28ab-4207-8d33-4fb10f32b794",
+              "name": "date",
+              "value": "={{ $json.date }}",
+              "type": "string"
+            },
+            {
+              "id": "9ed27c25-e12d-41e8-b260-4283ff7e9b7c",
+              "name": "description",
+              "value": "={{ $json.description }}",
+              "type": "string"
+            },
+            {
+              "id": "f8995aa2-b152-41ce-af37-ac32e552a6b2",
+              "name": "publisher",
+              "value": "={{ $json.publisher }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        320,
+        560
+      ],
+      "id": "10b8a3c9-7d31-4f22-b3f8-279455dac2f7",
+      "name": "setMetadata_final"
+    },
+    {
+      "parameters": {
+        "url": "=https://openlibrary.org/api/books?bibkeys=ISBN:{{ $('Script Python Webhook').item.json.body.isbn }}&format=json&jscmd=data",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (compatible; MyBot/1.0; +https://example.com/bot)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -3248,
+        448
+      ],
+      "id": "660d3dd0-a6ef-445a-b3c6-7c4405db6527",
+      "name": "OpenLibrary API ISBN",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "url": "=https://openlibrary.org/{{ $json.authors[0].key }}.json",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (compatible; MyBot/1.0; +https://example.com/bot)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2912,
+        432
+      ],
+      "id": "fc74cb79-230a-420d-9c60-cdf904a90e9f",
+      "name": "OpenLibrary API Author"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "05c231bd-0c61-42b8-9116-10c5f9cfe92d",
+              "name": "title",
+              "value": "={{ $json.volumeInfo.title }}",
+              "type": "string"
+            },
+            {
+              "id": "e49b73e1-7cba-4d06-a51c-a01014afdc48",
+              "name": "creator",
+              "value": "={{ $json.volumeInfo.authors[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "8e574aee-1b05-439e-bd66-03c47fd12343",
+              "name": "identifier",
+              "value": "={{ $json.volumeInfo.industryIdentifiers }}",
+              "type": "array"
+            },
+            {
+              "id": "e657cba5-8b9b-4634-b9ce-77383032c2ce",
+              "name": "language",
+              "value": "={{ $json.volumeInfo.language }}",
+              "type": "string"
+            },
+            {
+              "id": "285884e9-28ab-4207-8d33-4fb10f32b794",
+              "name": "date",
+              "value": "={{ $json.volumeInfo.publishedDate }}",
+              "type": "string"
+            },
+            {
+              "id": "9ed27c25-e12d-41e8-b260-4283ff7e9b7c",
+              "name": "description",
+              "value": "={{ $json.volumeInfo.description }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1824,
+        368
+      ],
+      "id": "e51b9490-6292-4919-a5cf-9eb417f96d28",
+      "name": "setMetadata Google"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "05c231bd-0c61-42b8-9116-10c5f9cfe92d",
+              "name": "title",
+              "value": "={{ $('OpenLibrary API ISBN').item.json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "e49b73e1-7cba-4d06-a51c-a01014afdc48",
+              "name": "creator",
+              "value": "={{ $json.name }}",
+              "type": "string"
+            },
+            {
+              "id": "285884e9-28ab-4207-8d33-4fb10f32b794",
+              "name": "date",
+              "value": "={{ $('OpenLibrary API ISBN').item.json.publish_date }}",
+              "type": "string"
+            },
+            {
+              "id": "331d1c58-644f-4465-9727-4ed298ff4328",
+              "name": "publisher",
+              "value": "={{ $('OpenLibrary API ISBN').item.json.publishers[0] }}",
+              "type": "string"
+            },
+            {
+              "id": "413e3836-6705-4f18-9395-bad5dbbf3c99",
+              "name": "identifier",
+              "value": "={{ [\n  { type: \"ISBN_10\", identifier: $('OpenLibrary API ISBN').item.json.isbn_10[0] },\n  { type: \"ISBN_13\", identifier: $('OpenLibrary API ISBN').item.json.isbn_13[0] }\n] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {
+          "ignoreConversionErrors": false
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2720,
+        432
+      ],
+      "id": "496d5ece-1394-4324-9f6f-943de3189bff",
+      "name": "setMetadata Open Library"
+    },
+    {
+      "parameters": {
+        "url": "=https://www.googleapis.com/books/v1/volumes?q=+intitle:\"{{ $json.titre }}\"",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {}
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "user-agent",
+              "value": "Mozilla/5.0 (compatible; MyBot/1.0; +https://example.com/bot)"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -2992,
+        704
+      ],
+      "id": "2ebf10ca-da26-4d99-a718-f054d87c40fb",
+      "name": "Google Books API1",
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "66d6dc13-481f-4b8e-8a84-9a9f023f0ceb",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -3392,
+        720
+      ],
+      "id": "162ce74c-0933-4575-b314-7a33d13ecf45",
+      "name": "If4"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "6e66f8ca-1813-4b0c-b088-6ce09f1f5c57",
+              "leftValue": "={{ $json.items }}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -2752,
+        704
+      ],
+      "id": "ef0bcd77-d289-404e-a8ef-9471a5978896",
+      "name": "If5"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ITEMS = $input.first().json.items    \nconst SEARCH_TITLE = $('JS getName').first().json.titre\nconst MIN_SCORE = 0.3;\n\nfunction normalize(str) {\n  let s = String(str).toLowerCase();\n  const accentMap = {\n    à:\"a\", á:\"a\", â:\"a\", ä:\"a\", ã:\"a\", å:\"a\",\n    è:\"e\", é:\"e\", ê:\"e\", ë:\"e\",\n    ì:\"i\", í:\"i\", î:\"i\", ï:\"i\",\n    ò:\"o\", ó:\"o\", ô:\"o\", ö:\"o\", õ:\"o\",\n    ù:\"u\", ú:\"u\", û:\"u\", ü:\"u\",\n    ç:\"c\",\n    œ:\"oe\"\n  };\n  s = s.replace(/./g, ch => accentMap[ch] || ch);\n  return s.replace(/[^a-z0-9\\s]/g, \" \").replace(/\\s+/g, \" \").trim();\n}\n\nfunction tokenOverlap(a, b) {\n  const A = new Set(a.split(\" \").filter(Boolean));\n  const B = new Set(b.split(\" \").filter(Boolean));\n  if (!A.size || !B.size) return 0;\n  let inter = 0;\n  for (const t of A) if (B.has(t)) inter++;\n  return inter / new Set([...A, ...B]).size;\n}\n\nfunction levenshteinSim(a, b) {\n  const la = a.length, lb = b.length;\n  if (!la && !lb) return 1;\n  if (!la || !lb) return 0;\n  const m = Array.from({ length: la + 1 }, () => Array(lb + 1).fill(0));\n  for (let i = 0; i <= la; i++) m[i][0] = i;\n  for (let j = 0; j <= lb; j++) m[0][j] = j;\n  for (let i = 1; i <= la; i++) {\n    for (let j = 1; j <= lb; j++) {\n      const cost = a[i-1] === b[j-1] ? 0 : 1;\n      m[i][j] = Math.min(\n        m[i-1][j] + 1,\n        m[i][j-1] + 1,\n        m[i-1][j-1] + cost\n      );\n    }\n  }\n  return 1 - m[la][lb] / Math.max(la, lb);\n}\n\nfunction similarity(a, b) {\n  if (!a || !b) return 0;\n  if (a === b) return 1;\n  return 0.6 * tokenOverlap(a, b) + 0.4 * levenshteinSim(a, b);\n}\n\nlet bestItem = null;\nlet bestScore = 0;\nlet reason = null;\n\nif (Array.isArray(ITEMS) && SEARCH_TITLE) {\n  const normalizedSearch = normalize(SEARCH_TITLE);\n\n  for (const item of ITEMS) {\n    const title = item?.volumeInfo?.title;\n    if (!title) continue;\n\n    const score = similarity(normalizedSearch, normalize(title));\n    if (score > bestScore) {\n      bestScore = score;\n      bestItem = item;\n    }\n  }\n\n  if (!bestItem) {\n    reason = \"no_items\";\n  } else if (bestScore < MIN_SCORE) {\n    reason = \"below_threshold\";\n    bestItem = null;\n  } else {\n    reason = \"match_found\";\n  }\n} else {\n  bestItem = null;\n  bestScore = 0;\n  reason = \"invalid_input\";\n}\n\nlet output;\n\nif (bestItem) {\n  output = {\n    ...bestItem,\n    debug: {\n      score: bestScore,\n      reason\n    }\n  };\n} else {\n  output = {\n    debug: {\n      score: bestScore,\n      reason\n    }\n  };\n}\n\nreturn [\n  {\n    json: output\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -2192,
+        688
+      ],
+      "id": "1db483a7-dae8-4036-91e3-84b458866c01",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e33d546a-d423-4783-8e5e-b0298b5f51fc",
+              "name": "volumeInfo.authors[0]",
+              "value": "={{ $('If').item.json.results[0].label }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1952,
+        608
+      ],
+      "id": "aba13cc7-a063-4d6a-a49f-68076ee7da17",
+      "name": "Edit Fields2"
+    }
+  ],
+  "pinData": {
+    "AI Agent1": [
+      {
+        "json": {
+          "output": {
+            "auteur": "Smith, Lisa Jane",
+            "explication": "Auteur_metadata est clairement identifié comme l'auteur du livre."
+          }
+        }
+      }
+    ],
+    "Script Python Webhook": [
+      {
+        "json": {
+          "headers": {
+            "host": "192.168.1.56:5678",
+            "user-agent": "python-requests/2.32.5",
+            "accept-encoding": "gzip, deflate",
+            "accept": "*/*",
+            "connection": "keep-alive",
+            "content-length": "12263",
+            "content-type": "application/json"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "filename": "#EnjoyMarie - Marie Lopez.epub",
+            "isbn": "",
+            "root": "/app",
+            "destination": "G:/Livres_sorted",
+            "text": "Cover @page {padding: 0pt; margin:0pt} body { text-align: center; padding:0pt; margin: 0pt; } Inconnu(e) Inconnu(e) Résumé &nbsp; &nbsp; &nbsp; «J’ai eu envie de raconter une histoire, de partager quelque chose de différent avec vous. Moins de vidéos, plus de mots, moins d’EnjoyPhœnix, plus de Marie. Kaléidoscope d’instants, Polaroids de ma vie au collège, puis au lycée... Rassurez-vous, ce n’est pas une autobiographie. A mon âge, vous rigolez ! Simplement un regard, des remarques spontanées sur des sujets parfois mis à l’écart par les médias, ce genre de sujets pas vraiment accrocheurs : être bien dans sa peau avec... un appareil dentaire, des cheveux gras, de l’acné sévère, le harcèlement scolaire, la famille décomposée... Et le reste : le Net, les réseaux sociaux, tout y est, le meilleur comme le pire. Avec un peu de recul, et j’espère un peu d'humour, je témoigne ici de la réalité, quelquefois complexe, du jeune âge car, comme chacun sait, les ados sont une énigme pour les adultes. » &nbsp; &nbsp; Edition enrichie de deux chapitres inédits. &nbsp; Inconnu(e) &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; MARIE LOPEZ &nbsp; &nbsp; Marie Lopez a 21 ans et vit à Lyon. En 2011, elle s’est lancée dans l’aventure des chaînes YouTube en&nbsp;publiant une vidéo de conseils coiffure. Quatre ans&nbsp;et 300 vidéos plus tard, Marie, sous le nom&nbsp;d’EnjoyPhoenix, est devenue la première youtubeuse&nbsp;beauté et lifestyle de France, avec plus de 2 millions&nbsp;d’abonnés. En mars 2014, Marie a fait sa première tournée de meet-up dans 15 villes de France et de Belgique. A&nbsp;chaque rencontre, environ 1 500 personnes se sont&nbsp;déplacées. Elle a également participé à l’émission&nbsp; Danse avec les stars à l’automne 2015. &nbsp; &nbsp; Retrouvez Marie sur son site : www.enjoyphoenix.fr &nbsp; Inconnu(e) &nbsp; &nbsp; &nbsp; &nbsp; Merci à ma famille de m'avoir toujours soutenue quoi qu’il lui ait coûté et dans n’importe quelle situation, ce livre est un cadeau que je leur dédie. Je n’en oublie pas pour autant toutes les personnes qui me suivent et qui me soutiennent au quotidien, merci d’être aussi nombreux et nombreuses à contribuer à cette aventure YouTube ! &nbsp; Inconnu(e) I DÉBUT DE L’HISTOIRE Salut les filles... &nbsp; &nbsp; Salut les filles... Tout a commencé par cette phrase. Il y a bientôt quatre ans. J’aime bien ces trois mots : « Salut les filles », ils me ressemblent. Je les trouve simples et à la fois...&nbsp;un peu réducteurs. Je vous ai oubliés, vous, les garçons... Excusez-moi. Mais vous pouvez comprendre que mes rubriques soient un tantinet plus pour nous les filles, que pour&nbsp;vous... les garçons, non? A cet instant, je m’interroge. Mode, fashion, beauté... Oui, effectivement je suis un peu réductrice,&nbsp;mille pardons les boys, ces mots-là vous appartiennent&nbsp;aussi. Ne m’en veuillez pas mais, par simplicité, je m’adresserai en général à vous les filles, c’est mon&nbsp;côté féministe. Vous, les garçons, il vous faudra un&nbsp;peu de recul, beaucoup de patience, du discernement&nbsp;passionnément, de l’humour à la folie et pas du tout&nbsp;de jalousie. Ça marche comme ça ? Merci d’avance. Pourquoi un livre ? Vous serez sans doute un bon nombre à me poser la question. Une envie d’abord, les envies c’est comme ça... Je les prends telles qu’elles me viennent. Dès que j’ai&nbsp;un truc dans la tête, je ne peux pas m’en empêcher,&nbsp;il faut que je le fasse... C’est tout moi. &nbsp; &nbsp; Mon ordi, le « fixe » comme on dit, je l’appelle « Gros Lulu », affectueux n’est-ce pas ? Il trône, paisible, bien installé, câbles branchés sur mon bureau. Je connais par cœur tous ses sons étranges, les « bips » des messages qu’il reçoit, les grésillements&nbsp;de ses ventilateurs, les diodes rouges, vertes et bleues&nbsp;qui me font des clins d’œil, qui animent mes nuits&nbsp;parce que mon bonhomme d’ordinateur est un énorme&nbsp;insomniaque. Des semaines qu’il ne dort plus. Un hyperactif, en somme. Fidèle très souvent, infidèle ",
+            "pages_raw": [
+              "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\"\r\n  \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\r\n\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"en\">\r\n<head>\r\n  <meta content=\"true\" name=\"calibre:cover\" />\r\n\r\n  <title>Cover</title>\r\n  \r\n<style type=\"text/css\">\r\n@page {padding: 0pt; margin:0pt}\r\n            body { text-align: center; padding:0pt; margin: 0pt; }\r\n</style>\r\n</head>\r\n\r\n<body>\r\n  <div>\r\n    <svg xmlns=\"http://www.w3.org/2000/svg\" height=\"100%\" preserveAspectRatio=\"none\" version=\"1.1\" viewBox=\"0 0 459 751\" width=\"100%\" xmlns:xlink=\"http://www.w3.org/1999/xlink\">\r\n      <image height=\"751\" width=\"459\" xlink:href=\"../Images/cover.jpeg\"></image>\r\n    </svg>\r\n  </div>\r\n</body>\r\n</html>\r\n",
+              "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\"\r\n  \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\r\n\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"fr\" xmlns:xml=\"http://www.w3.org/XML/1998/namespace\">\r\n<head>\r\n  <title>Inconnu(e)</title>\r\n  <link href=\"../Styles/stylesheet.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n  <link href=\"../Styles/page_styles.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n</head>\r\n\r\n<body class=\"calibre\">\r\n  <p class=\"block_\"><img alt=\"titre\" class=\"calibre1\" src=\"../Images/image-1.jpeg\" /></p>\r\n</body>\r\n</html>\r\n",
+              "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\"\r\n  \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\r\n\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"fr\">\r\n<head>\r\n  <title>Inconnu(e)</title>\r\n  <link href=\"../Styles/stylesheet.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n  <link href=\"../Styles/page_styles.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n</head>\r\n\r\n<body class=\"calibre\">\r\n  <p class=\"block_2\">Résumé</p>\r\n\r\n  <p class=\"block_3\">&nbsp;</p>\r\n\r\n  <p class=\"block_3\">&nbsp;</p>\r\n\r\n  <p class=\"block_3\">&nbsp;</p>\r\n\r\n  <p class=\"block_4\">«J’ai eu envie de raconter une histoire, de partager quelque chose de différent avec vous. Moins de vidéos, plus de mots, moins d’EnjoyPhœnix, plus de Marie.</p>\r\n\r\n  <p class=\"block_4\">Kaléidoscope d’instants, Polaroids de ma vie au collège, puis au lycée... Rassurez-vous, ce n’est pas une autobiographie. A mon âge, vous rigolez ! Simplement un regard, des remarques spontanées sur des sujets parfois mis à l’écart par les médias, ce genre de sujets pas vraiment accrocheurs : être bien dans sa peau avec... un appareil dentaire, des cheveux gras, de l’acné sévère, le harcèlement scolaire, la famille décomposée... Et le reste : le Net, les réseaux sociaux, tout y est, le meilleur comme le pire.</p>\r\n\r\n  <p class=\"block_4\">Avec un peu de recul, et j’espère un peu d'humour, je témoigne ici de la réalité, quelquefois complexe, du jeune âge car, comme chacun sait, les ados sont une énigme pour les adultes. »</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_6\">Edition enrichie de deux chapitres inédits.</p>\r\n\r\n  <p class=\"block_1\" id=\"calibre_pb_1\">&nbsp;</p>\r\n</body>\r\n</html>\r\n",
+              "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\"\r\n  \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\r\n\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"fr\">\r\n<head>\r\n  <title>Inconnu(e)</title>\r\n  <link href=\"../Styles/stylesheet.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n  <link href=\"../Styles/page_styles.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n</head>\r\n\r\n<body class=\"calibre\">\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_7\">MARIE LOPEZ</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_4\">Marie Lopez a 21 ans et vit à Lyon. En 2011, elle s’est lancée dans l’aventure des chaînes YouTube en&nbsp;publiant une vidéo de conseils coiffure. Quatre ans&nbsp;et 300 vidéos plus tard, Marie, sous le nom&nbsp;d’EnjoyPhoenix, est devenue la première youtubeuse&nbsp;beauté et <i class=\"calibre2\">lifestyle</i> de France, avec plus de 2 millions&nbsp;d’abonnés.</p>\r\n\r\n  <p class=\"block_4\">En mars 2014, Marie a fait sa première tournée de <i class=\"calibre2\">meet-up</i> dans 15 villes de France et de Belgique. A&nbsp;chaque rencontre, environ 1 500 personnes se sont&nbsp;déplacées. Elle a également participé à l’émission&nbsp;<i class=\"calibre2\">Danse avec les stars</i> à l’automne 2015.</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_5\">&nbsp;</p>\r\n\r\n  <p class=\"block_7\">Retrouvez Marie sur son site :</p>\r\n\r\n  <p class=\"block_\"><a class=\"text_\" href=\"http://www.enjoyphoenix.fr\">www.enjoyphoenix.fr</a></p>\r\n\r\n  <p class=\"block_8\" id=\"calibre_pb_2\">&nbsp;</p>\r\n</body>\r\n</html>\r\n",
+              "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.1//EN\"\r\n  \"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd\">\r\n\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"fr\">\r\n<head>\r\n  <title>Inconnu(e)</title>\r\n  <link href=\"../Styles/stylesheet.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n  <link href=\"../Styles/page_styles.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n</head>\r\n\r\n<body class=\"calibre\">\r\n  <p class=\"block_3\">&nbsp;</p>\r\n\r\n  <p class=\"block_9\">&nbsp;</p>\r\n\r\n  <p class=\"block_9\">&nbsp;</p>\r\n\r\n  <p class=\"block_9\">&nbsp;</p>\r\n\r\n  <p class=\"block_10\">Merci à ma famille de m'avoir toujours soutenue</p>\r\n\r\n  <p class=\"block_10\">quoi qu’il lui ait coûté et dans n’importe quelle</p>\r\n\r\n  <p class=\"block_10\">situation, ce livre est un cadeau que je leur dédie.</p>\r\n\r\n  <p class=\"block_10\">Je n’en oublie pas pour autant toutes les personnes</p>\r\n\r\n  <p class=\"block_10\">qui me suivent et qui me soutiennent au quotidien,</p>\r\n\r\n  <p class=\"block_10\">merci d’être aussi nombreux et nombreuses</p>\r\n\r\n  <p class=\"block_10\">à contribuer à cette aventure YouTube !</p>\r\n\r\n  <p class=\"block_11\" id=\"calibre_pb_3\">&nbsp;</p>\r\n</body>\r\n</html>\r\n"
+            ],
+            "metadata": {
+              "title": "EnjoyMarie",
+              "creator": "Lopez, Marie",
+              "publisher": "",
+              "language": "fr",
+              "identifier": "80af68e3-9413-4663-bb38-42b8fee8a23d",
+              "description": "",
+              "identifiers": [
+                "80af68e3-9413-4663-bb38-42b8fee8a23d",
+                "80af68e3-9413-4663-bb38-42b8fee8a23d"
+              ],
+              "extra": {
+                "calibre:timestamp": [
+                  "2016-10-18T20:53:58.938000+00:00"
+                ],
+                "cover": [
+                  "cover"
+                ],
+                "calibre:title_sort": [
+                  "EnjoyMarie"
+                ],
+                "Sigil version": [
+                  "0.7.4"
+                ]
+              }
+            }
+          },
+          "webhookUrl": "https://192.168.1.56:5678/webhook-test/epub-metadata",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
+  "connections": {
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Script Python Webhook": {
+      "main": [
+        [
+          {
+            "node": "ISBN not_null",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JS getName": {
+      "main": [
+        [
+          {
+            "node": "If4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent2": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model4": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser1",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent2",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model5": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser2": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model3": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser2",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Google Books API1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "getAuthorsDataWikidata": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [],
+        [
+          {
+            "node": "AI Agent1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent3": {
+      "main": [
+        []
+      ]
+    },
+    "Ollama Chat Model6": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser3": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Auto-fixing Output Parser3",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auto-fixing Output Parser3": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent3",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model7": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Auto-fixing Output Parser3",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        []
+      ]
+    },
+    "Google Books API": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ISBN not_null": {
+      "main": [
+        [
+          {
+            "node": "Google Books API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "JS getName",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Out": {
+      "main": [
+        [
+          {
+            "node": "Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter": {
+      "main": [
+        [
+          {
+            "node": "setMetadata Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Split Out",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "OpenLibrary API ISBN",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "OpenLibrary API Author",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "JS getName",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "setMetadata_final": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenLibrary API ISBN": {
+      "main": [
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenLibrary API Author": {
+      "main": [
+        [
+          {
+            "node": "setMetadata Open Library",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "setMetadata Google": {
+      "main": [
+        [
+          {
+            "node": "setMetadata_final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "setMetadata Open Library": {
+      "main": [
+        [
+          {
+            "node": "setMetadata_final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If4": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Books API1": {
+      "main": [
+        [
+          {
+            "node": "If5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If5": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "getAuthorsDataWikidata",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields2": {
+      "main": [
+        [
+          {
+            "node": "setMetadata Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "executionTimeout": -1,
+    "availableInMCP": false
+  },
+  "versionId": "ba5a4833-ae0f-4c10-954f-0b588c9cb18a",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "1a32726ffb82494456c83ff9805ae60d509ca1189921524744f6bdbae64ee4e9"
+  },
+  "id": "TYQtsMCZnrywKRxC",
+  "tags": []
+}

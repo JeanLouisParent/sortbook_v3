@@ -17,3 +17,5 @@ certs/
 database/*.sqlite
 n8n_data/*.sqlite
 dumps/
+
+patches/

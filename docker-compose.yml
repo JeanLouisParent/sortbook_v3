@@ -59,7 +59,6 @@ services:
       - N8N_WEBHOOK_PROD_URL=${N8N_WEBHOOK_PROD_URL}
       - N8N_MODE=${N8N_MODE}
       - N8N_VERIFY_SSL=${N8N_VERIFY_SSL}
-      - CONFIDENCE_MIN=${CONFIDENCE_MIN}
     volumes:
       - ${EPUB_ROOT:-./ebooks}:/data:rw
       - .:/app:rw

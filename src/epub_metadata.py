@@ -103,11 +103,10 @@ class Config:
 
 @dataclass
 class EpubResult:
-    """Result from n8n webhook processing."""
+    """Result from n8n webhook processing (title/author/explanation only)."""
 
     titre: str = "inconnu"
     auteur: str = "inconnu"
-    confiance: str = "inconnu"
     explication: str = ""
 
     @classmethod
@@ -115,7 +114,6 @@ class EpubResult:
         return cls(
             titre=str(data.get("titre") or "").strip() or "inconnu",
             auteur=str(data.get("auteur") or "").strip() or "inconnu",
-            confiance=str(data.get("confiance") or "").strip().lower() or "inconnu",
             explication=str(data.get("explication") or "").strip(),
         )
 
@@ -297,6 +295,32 @@ def _extract_full_text(epub_path: Path) -> str:
     return " ".join(texts).strip()
 
 
+def extract_raw_pages_from_epub(epub_path: Path, max_pages: int = 5) -> list[str]:
+    """Extract raw (non-parsed) HTML content from the first `max_pages` text files.
+
+    Les "pages" correspondent ici aux premiers fichiers HTML/XHTML renvoyés
+    par `_iter_text_files`, en respectant l'ordre de priorité (couverture, etc.).
+    """
+    pages: list[str] = []
+
+    try:
+        with zipfile.ZipFile(epub_path) as zf:
+            for info in _iter_text_files(zf):
+                try:
+                    with zf.open(info) as handle:
+                        raw = handle.read().decode("utf-8", errors="ignore")
+                except Exception:
+                    continue
+
+                pages.append(raw)
+                if len(pages) >= max_pages:
+                    break
+    except (zipfile.BadZipFile, FileNotFoundError):
+        return []
+
+    return pages
+
+
 def extract_metadata_from_epub(epub_path: Path) -> EpubMetadata:
     """Extract metadata from EPUB OPF file."""
     metadata = EpubMetadata()
@@ -373,11 +397,17 @@ def _normalize_single_n8n_object(obj: dict[str, Any]) -> dict[str, Any]:
 
     title = data.pop("title", None)
     author = data.pop("author", None)
+    creator = data.get("creator")
 
     if title is not None and not str(data.get("titre", "")).strip():
         data["titre"] = title
-    if author is not None and not str(data.get("auteur", "")).strip():
-        data["auteur"] = author
+
+    # Priorité à « author » si présent, sinon « creator » (comme dans l'exemple d'API)
+    if not str(data.get("auteur", "")).strip():
+        if author is not None:
+            data["auteur"] = author
+        elif creator is not None:
+            data["auteur"] = creator
 
     return data
 
@@ -441,7 +471,6 @@ def log_result(
         "path": str(epub_path),
         "titre": result.titre,
         "auteur": result.auteur,
-        "confiance": result.confiance,
         "explication": result.explication,
         "destination": config.dest_path,
         "metadata": metadata.to_dict(),
@@ -472,7 +501,6 @@ class ConsoleOutput:
     def print_result(result: EpubResult) -> None:
         print(f"  Titre       : {result.titre}")
         print(f"  Auteur      : {result.auteur}")
-        print(f"  Confiance   : {result.confiance}")
         if result.explication:
             print(f"  Explication : {result.explication}")
 
@@ -495,6 +523,7 @@ def process_epub(
         return
 
     metadata = extract_metadata_from_epub(epub_path)
+    raw_pages = extract_raw_pages_from_epub(epub_path, max_pages=5)
 
     # 1) Chercher l'ISBN dans les métadonnées
     metadata_strings = [
@@ -518,6 +547,7 @@ def process_epub(
         "root": config.epub_root_label,
         "destination": config.dest_path,
         "text": text,
+        "pages_raw": raw_pages,
         "metadata": metadata.to_dict(),
     }
 
