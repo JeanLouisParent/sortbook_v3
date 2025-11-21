@@ -43,7 +43,9 @@ services:
 
   epub-agent:
     build: .
-    restart: unless-stopped
+    # Service utilisé principalement via `docker compose run` pour des traitements ponctuels.
+    # Pas besoin qu'il reste vivant ni qu'il redémarre en boucle.
+    restart: "no"
     depends_on:
       n8n:
         condition: service_started
@@ -62,3 +64,13 @@ services:
       - ${EPUB_ROOT:-./ebooks}:/data:rw
       - .:/app:rw
       - ./certs:/certs:ro
+
+  sqlite:
+    image: keinos/sqlite3:latest
+    restart: unless-stopped
+    volumes:
+      - ./database:/database
+      - ./docker/sqlite-init.sh:/init.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /init.sh

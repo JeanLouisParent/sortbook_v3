@@ -1,4 +1,4 @@
-﻿# Dépendances Python
+# Dépendances Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -8,7 +8,7 @@ __pycache__/
 ollama_data/
 ebooks/
 log/
-
+n8n_data/
 
 # Fichiers temporaires
 .DS_Store

@@ -1,0 +1,302 @@
+diff --git a/doc/usage.md b/doc/usage.md
+index 5329de0..013bae8 100644
+--- a/doc/usage.md
++++ b/doc/usage.md
+@@ -68,6 +68,7 @@ Ces variables dâ”œÂ®finissent comment le script Python interagit avec votre instanc
+
+     -   `true`, `1`, `yes`, `oui` (par dâ”œÂ®faut si non dâ”œÂ®fini) : Active la vâ”œÂ®rification SSL.
+
+     -   Tout autre chemin : Spâ”œÂ®cifie un chemin vers un fichier de certificat CA personnalisâ”œÂ® (par exemple, `/certs/n8n.crt`).
+
+ -   `N8N_TIMEOUT` : Dâ”œÂ®lai maximum en secondes pour l'appel HTTP au webhook n8n (par dâ”œÂ®faut `120.0`).
+
++-   `RUN_EPUB_AGENT` : `true` pour que le conteneur `epub-agent` lance automatiquement le script `src/epub_metadata.py` â”œÃ¡ son dâ”œÂ®marrage ; `false` (dâ”œÂ®faut) le maintient â”œÃ¡ l'arrâ”œÂ¬t pour que tu puisses dâ”œÂ®clencher manuellement les traitements depuis la CLI (`docker compose exec epub-agent ...`).
+
+ 
+
+ **Sâ”œÂ®lection de l'URL d'appel :**
+
+ 
+
+@@ -85,15 +86,14 @@ Ces variables dâ”œÂ®finissent comment le script Python interagit avec votre instanc
+
+ python src/epub_metadata.py --folder /chemin/vers/mes/epub --dry-run --limit 5
+
+ ```
+
+ 
+
+--   `--dry-run` : (par dâ”œÂ®faut si aucune option de renommage n'est active) â”œÂ®vite les renommages effectifs des fichiers sur le disque.
+
++-   `--dry-run` : (par dâ”œÂ®faut) maintient le script en lecture seule, il n'â”œÂ®crit aucun fichier et n'exâ”œÂ®cute aucun renommage.
+
+ -   `--limit N` : Permet de limiter le traitement aux `N` premiers fichiers EPUB trouvâ”œÂ®s.
+
+ -   `--folder PATH` : Spâ”œÂ®cifie le dossier â”œÃ¡ traiter. Si non fourni, le script utilise la variable d'environnement `EPUB_SOURCE_DIR` ou demande â”œÃ¡ l'utilisateur.
+
+--   `--confidence-min FLOAT` : Surcharge le seuil de confiance minimal dâ”œÂ®fini par la variable d'environnement `CONFIDENCE_MIN`.
+
+--   `--test` : Active le mode test (utilise `N8N_WEBHOOK_TEST_URL`, affiche la râ”œÂ®ponse brute de n8n, pas de renommage).
+
++-   `--test` : Active le mode test (utilise `N8N_WEBHOOK_TEST_URL`, affiche la râ”œÂ®ponse brute de n8n).
+
+ 
+
+-Les variables d'environnement (`EPUB_SOURCE_DIR`, `CONFIDENCE_MIN`, `N8N_WEBHOOK_*`, etc.) sont lues depuis l'environnement systâ”œÂ¿me ou un fichier `.env`.
+
++Les variables d'environnement (`EPUB_SOURCE_DIR`, `N8N_WEBHOOK_*`, etc.) sont lues depuis l'environnement systâ”œÂ¿me ou un fichier `.env`.
+
+ 
+
+-Pour passer en mode "production" et autoriser le renommage râ”œÂ®el, lancez la commande **sans** l'argument `--dry-run` (et assurez-vous que `CONFIDENCE_MIN` est râ”œÂ®glâ”œÂ® au seuil dâ”œÂ®sirâ”œÂ®).
+
++Le script ne renomme jamais les fichiers ; `--dry-run` reste l'option pour â”œÂ®viter tout impact sur le disque tout en loggant les râ”œÂ®ponses de n8n.
+
+ 
+
+ ## Configuration centralisâ”œÂ®e (.env)
+
+ 
+
+@@ -103,15 +103,14 @@ Voici les variables d'environnement principales :
+
+ 
+
+ -   **`EPUB_ROOT`** : Chemin local vers le dossier racine contenant vos EPUB. Ce chemin est montâ”œÂ® dans le conteneur Docker de l'agent sur `/data`. Il est â”œÂ®galement transmis dans le `payload` envoyâ”œÂ® â”œÃ¡ n8n sous la clâ”œÂ® `root`.
+
+ -   **`EPUB_SOURCE_DIR`** : Le chemin *â”œÃ¡ l'intâ”œÂ®rieur du conteneur* oâ”œâ•£ le script s'attend â”œÃ¡ trouver les EPUB (doit correspondre au point de montage de `EPUB_ROOT`, gâ”œÂ®nâ”œÂ®ralement `/data`).
+
+--   **`EPUB_DEST`** : Chemin local vers le dossier de destination pour les EPUB renommâ”œÂ®s. Si non spâ”œÂ®cifiâ”œÂ®, les fichiers sont renommâ”œÂ®s sur place. Cette valeur est â”œÂ®galement incluse dans le `payload` n8n.
+
++-   **`EPUB_DEST`** : Chemin local vers le dossier de destination (inclus dans le `payload` n8n, sans â”œÂ®criture automatique).
+
+ -   **`LOG_DIR`** : Râ”œÂ®pertoire oâ”œâ•£ sera stockâ”œÂ® le fichier de log JSONL.
+
+ -   **`EPUB_LOG_FILE`** : Nom du fichier de log JSONL (par dâ”œÂ®faut `n8n_response.json`).
+
+ -   **`N8N_WEBHOOK_PROD_URL`**, **`N8N_WEBHOOK_TEST_URL`**, **`N8N_VERIFY_SSL`**, **`N8N_TIMEOUT`** : Voir la section prâ”œÂ®câ”œÂ®dente pour les dâ”œÂ®tails de configuration de n8n.
+
+--   **`CONFIDENCE_MIN`** : Seuil de confiance minimal (float entre 0.0 et 1.0) requis pour qu'un fichier soit renommâ”œÂ® automatiquement.
+
+ -   **`DEFAULT_MAX_TEXT_CHARS`** : Nombre maximal de caractâ”œÂ¿res de texte â”œÃ¡ extraire de l'EPUB pour l'analyse par n8n (par dâ”œÂ®faut `4000`).
+
+ -   **`DEFAULT_SLUG_MAX_LENGTH`** : Longueur maximale pour les "slugs" gâ”œÂ®nâ”œÂ®râ”œÂ®s pour les noms de fichiers (par dâ”œÂ®faut `150`).
+
+ 
+
+-Ces variables garantissent que le script et les services Docker fonctionnent avec la mâ”œÂ¬me configuration.
+
++Ces variables garantissent que le script et les services Docker fonctionnent avec la mâ”œÂ¬me configuration. Le payload transmis â”œÃ¡ n8n et les logs JSON associâ”œÂ®s incluent dâ”œÂ®sormais la totalitâ”œÂ® des mâ”œÂ®tadonnâ”œÂ®es OPF extraites (chaque `dc:*` ou `<meta>`), avec un champ `metadata.isbn` lorsque l'ISBN 10 ou 13 est dâ”œÂ®tectâ”œÂ®.
+
+ 
+
+ ## Via docker-compose
+
+ 
+
+@@ -167,35 +166,60 @@ docker compose exec epub-agent \
+
+ 
+
+ Notez que `--folder /data` indique au script de rechercher les EPUB dans le râ”œÂ®pertoire `/data` *â”œÃ¡ l'intâ”œÂ®rieur du conteneur*, qui est le point de montage de votre `EPUB_ROOT` local.
+
+ 
+
+-La commande ci-dessus utilise `--limit` et `--dry-run` pour un test sâ”œâ•—r. Toutes les autres configurations (URLs de webhook, chemins de log, seuils de confiance) sont automatiquement lues depuis les variables d'environnement configurâ”œÂ®es dans le `.env` de votre projet et passâ”œÂ®es au conteneur.
+
++La commande ci-dessus utilise `--limit` et `--dry-run` pour un test sâ”œâ•—r. Toutes les autres configurations (URLs de webhook, chemins de log, etc.) sont automatiquement lues depuis les variables d'environnement configurâ”œÂ®es dans le `.env` de votre projet et passâ”œÂ®es au conteneur.
+
+ 
+
+ ## Journaux et râ”œÂ®sultats
+
+ 
+
+ Chaque EPUB traitâ”œÂ® gâ”œÂ®nâ”œÂ¿re une ligne au format JSONL dans le fichier de log spâ”œÂ®cifiâ”œÂ® par `EPUB_LOG_FILE` (`n8n_response.json` par dâ”œÂ®faut). Ce log contient toutes les informations pertinentes pour le suivi et l'analyse post-traitement :
+
++La râ”œÂ®ponse normalisâ”œÂ®e renvoyâ”œÂ®e par n8n est inscrite sous la clâ”œÂ® `result`, avec `titre`, `auteur` et le reste des mâ”œÂ®tadonnâ”œÂ®es.
+
+ 
+
+ ```json
+
+ {
+
+   "filename": "MonLivre.epub",
+
+   "path": "/chemin/complet/vers/MonLivre.epub",
+
+-  "titre": "Titre du livre",
+
+-  "auteur": "Nom de l'auteur",
+
+-  "confiance": "0.81",
+
+-  "explication": "Correspondance trouvâ”œÂ®e via...",
+
+   "destination": "/chemin/de/destination/specifie",
+
+-  "metadata": {
+
++  "result": {
+
++    "titre": "Titre du livre",
+
++    "auteur": "Nom de l'auteur",
+
++    "metadata": {
+
++      "title": "Titre OPF",
+
++      "creator": "Crâ”œÂ®ateur OPF",
+
++      "publisher": "â”œÃ«diteur OPF",
+
++      "language": "fr",
+
++      "identifier": "identifiant-unique",
+
++      "description": "Description de l'EPUB",
+
++      "isbn": "9781234567897",
+
++      "dc:subject": ["Roman", "Fantastique"],
+
++      "meta:cover": "cover.jpg"
+
++    }
+
++  },
+
++  "epub_metadata": {
+
+     "title": "Titre OPF",
+
+     "creator": "Crâ”œÂ®ateur OPF",
+
+     "publisher": "â”œÃ«diteur OPF",
+
+     "language": "fr",
+
+     "identifier": "identifiant-unique",
+
+-    "description": "Description de l'EPUB"
+
++    "description": "Description de l'EPUB",
+
++    "isbn": "9781234567897",
+
++    "dc:subject": ["Roman", "Fantastique"],
+
++    "meta:cover": "cover.jpg"
+
+   },
+
+   "payload": {
+
+     "filename": "MonLivre.epub",
+
+     "root": "/chemin/racine/des/epubs",
+
+     "destination": "/chemin/de/destination/specifie",
+
+     "text": "Extrait de texte envoyâ”œÂ® â”œÃ¡ n8n...",
+
+-    "metadata": { /* ... mâ”œÂ¬mes mâ”œÂ®tadonnâ”œÂ®es que ci-dessus ... */ }
+
++    "metadata": {
+
++      "title": "Titre OPF",
+
++      "creator": "Crâ”œÂ®ateur OPF",
+
++      "publisher": "â”œÃ«diteur OPF",
+
++      "language": "fr",
+
++      "identifier": "identifiant-unique",
+
++      "description": "Description de l'EPUB",
+
++      "isbn": "9781234567897",
+
++      "dc:subject": ["Roman", "Fantastique"],
+
++      "meta:cover": "cover.jpg"
+
++    }
+
+   }
+
+ }
+
+ ```
+
+@@ -206,24 +230,15 @@ Ce fichier de log peut â”œÂ¬tre ensuite utilisâ”œÂ® pour alimenter d'autres systâ”œÂ¿mes,
+
+ 
+
+ Le script peut â”œÂ¬tre exâ”œÂ®cutâ”œÂ® en deux modes principaux en ce qui concerne l'interaction avec n8n :
+
+ 
+
+--   **Mode `--test`** :
+
+-    -   Le script utilise l'URL de test (`N8N_WEBHOOK_TEST_URL`).
+
++-   **Mode --test** :
+
++    -   Le script utilise l'URL de test (N8N_WEBHOOK_TEST_URL).
+
+     -   Il n'attend pas de format JSON particulier de la part de n8n et affiche la râ”œÂ®ponse brute du webhook directement dans la console.
+
+-    -   Aucun renommage de fichier n'est effectuâ”œÂ®, quelle que soit la râ”œÂ®ponse.
+
+-    Ce mode est idâ”œÂ®al pour le dâ”œÂ®bogage de vos workflows n8n.
+
+-
+
+--   **Mode normal (sans `--test`)** :
+
+-    -   Le script utilise l'URL de production (`N8N_WEBHOOK_PROD_URL`).
+
+-    -   Il attend une râ”œÂ®ponse JSON structurâ”œÂ®e de n8n pour pouvoir en extraire les informations de renommage (`titre`, `auteur`, `confiance`, `explication`).
+
+-    -   La logique mâ”œÂ®tier de renommage (basâ”œÂ®e sur la confiance et le titre) est appliquâ”œÂ®e.
+
+-
+
+-**Formats de râ”œÂ®ponse n8n acceptâ”œÂ®s en mode normal :**
+
+-
+
+-Le script est flexible et peut interprâ”œÂ®ter plusieurs structures de râ”œÂ®ponse JSON pour en extraire un `EpubResult` (titre, auteur, confiance, explication) :
+
++    -   Aucun fichier n'est modifiâ”œÂ®, quelle que soit la râ”œÂ®ponse.
+
++  Ce mode est idâ”œÂ®al pour le dâ”œÂ®bogage de vos workflows n8n.
+
+ 
+
+--   **Format direct (recommandâ”œÂ®) :** Un objet JSON contenant directement les clâ”œÂ®s `titre`, `auteur`, `confiance`, `explication`.
+
+--   **Clâ”œÂ®s alternatives `title`/`author` :** Si votre workflow renvoie `title` et `author` (en anglais) au lieu de `titre` et `auteur` (en franâ”œÂºais), elles seront automatiquement converties.
+
+--   **Format encapsulâ”œÂ® (`output`) :** Un objet JSON contenant un sous-objet `output` qui contient lui-mâ”œÂ¬me les informations de renommage.
+
+--   **Format liste :** Le script peut â”œÂ®galement traiter une liste d'objets, en ne considâ”œÂ®rant que le premier â”œÂ®lâ”œÂ®ment. Ces objets peuvent â”œÂ¬tre au format direct ou encapsulâ”œÂ®.
+
++-   **Mode normal (sans --test)** :
+
++    -   Le script utilise l'URL de production (N8N_WEBHOOK_PROD_URL).
+
++    -   Il attend une liste d'objets metadata de n8n (comme l'exemple prâ”œÂ®sentâ”œÂ® dans le README) et remplace 	itle/creator par 	itre/uteur.
+
++    -   Les mâ”œÂ®tadonnâ”œÂ®es sont journalisâ”œÂ®es sans toucher aux fichiers.
+
+ 
+
+-Pour des exemples dâ”œÂ®taillâ”œÂ®s de ces formats, veuillez consulter la section "Webhook n8n : Formats de râ”œÂ®ponse pris en charge" dans le `README.md` ou `AGENTS.md`.
+
++Pour la structure attendue, consultez la section "Webhook n8n : Formats de râ”œÂ®ponse pris en charge" dans le `README.md` ou `AGENTS.md`.
+

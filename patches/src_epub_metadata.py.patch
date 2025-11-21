@@ -1,0 +1,1004 @@
+diff --git a/src/epub_metadata.py b/src/epub_metadata.py
+index 8cfcc33..deeba1d 100644
+--- a/src/epub_metadata.py
++++ b/src/epub_metadata.py
+@@ -14,7 +14,7 @@ import os
+
+ import re
+
+ import zipfile
+
+ import xml.etree.ElementTree as ET
+
+-from dataclasses import dataclass
+
++from dataclasses import dataclass, field
+
+ from pathlib import Path
+
+ from typing import Any, Iterable, Optional
+
+ 
+
+@@ -24,7 +24,6 @@ import requests
+
+ # Configuration defaults
+
+ DEFAULT_WEBHOOK_URL = "http://localhost:5678/webhook/epub-metadata"
+
+ DEFAULT_TIMEOUT = 120.0
+
+-DEFAULT_CONFIDENCE_MIN = 0.9
+
+ DEFAULT_MAX_TEXT_CHARS = 4000
+
+ DEFAULT_SLUG_MAX_LENGTH = 150
+
+ 
+
+@@ -37,6 +36,14 @@ PREFERRED_KEYWORDS = (
+
+     "copyright",
+
+ )
+
+ 
+
++DC_NAMESPACE = "http://purl.org/dc/elements/1.1/"
+
++OPF_NAMESPACE = "http://www.idpf.org/2007/opf"
+
++METADATA_PREFIXES = {
+
++    DC_NAMESPACE: "dc",
+
++    OPF_NAMESPACE: "opf",
+
++}
+
++NAMESPACES = {"dc": DC_NAMESPACE, "opf": OPF_NAMESPACE}
+
++
+
+ 
+
+ @dataclass
+
+ class Config:
+
+@@ -48,25 +55,23 @@ class Config:
+
+     log_path: Path
+
+     epub_root_label: str
+
+     dest_path: str
+
+-    confidence_min: float
+
+ 
+
+     @classmethod
+
+-    def load(cls, test_mode: bool = False, confidence_override: float | None = None) -> Config:
+
+-        """Load configuration from environment variables."""
+
+-        test_url = os.environ.get("N8N_WEBHOOK_TEST_URL")
+
+-        prod_url = os.environ.get("N8N_WEBHOOK_PROD_URL")
+
+-
+
+-        if test_mode:
+
+-            webhook_url = test_url or DEFAULT_WEBHOOK_URL
+
+-        else:
+
+-            webhook_url = prod_url or DEFAULT_WEBHOOK_URL
+
+-
+
+-        verify_ssl = cls._parse_ssl_verification()
+
+-        timeout = cls._parse_timeout()
+
+-        log_path = cls._parse_log_path()
+
++    def load(cls, test_mode: bool = False) -> Config:
+
++        """Load configuration from environment variables."""
+
++        test_url = os.environ.get("N8N_WEBHOOK_TEST_URL")
+
++        prod_url = os.environ.get("N8N_WEBHOOK_PROD_URL")
+
++
+
++        if test_mode:
+
++            webhook_url = test_url or DEFAULT_WEBHOOK_URL
+
++        else:
+
++            webhook_url = prod_url or DEFAULT_WEBHOOK_URL
+
++
+
++        verify_ssl = cls._parse_ssl_verification()
+
++        timeout = cls._parse_timeout()
+
++        log_path = cls._parse_log_path()
+
+         epub_root_label = os.getcwd()
+
+         dest_path = os.environ.get("EPUB_DEST", "")
+
+-        confidence_min = cls._parse_confidence(confidence_override)
+
+ 
+
+         return cls(
+
+             webhook_url=webhook_url,
+
+@@ -75,7 +80,6 @@ class Config:
+
+             log_path=log_path,
+
+             epub_root_label=epub_root_label,
+
+             dest_path=dest_path,
+
+-            confidence_min=confidence_min,
+
+         )
+
+ 
+
+     @staticmethod
+
+@@ -102,55 +106,36 @@ class Config:
+
+         log_filename = os.environ.get("EPUB_LOG_FILE", "n8n_response.json")
+
+         return log_dir / log_filename
+
+ 
+
+-    @staticmethod
+
+-    def _parse_confidence(override: float | None) -> float:
+
+-        if override is not None:
+
+-            return override
+
+-            
+
+-        env_confidence = os.environ.get("CONFIDENCE_MIN")
+
+-        if env_confidence is not None:
+
+-            try:
+
+-                return float(env_confidence.replace(",", "."))
+
+-            except ValueError:
+
+-                pass
+
+-                
+
+-        return DEFAULT_CONFIDENCE_MIN
+
+-
+
+-
+
+ @dataclass
+
+ class EpubResult:
+
+     """Result from n8n webhook processing."""
+
+     
+
+     titre: str = "inconnu"
+
+     auteur: str = "inconnu"
+
+-    confiance: str = "inconnu"
+
+-    explication: str = ""
+
++    metadata: dict[str, Any] = field(default_factory=dict)
+
+     
+
+     @classmethod
+
+     def from_dict(cls, data: dict[str, Any]) -> EpubResult:
+
++        normalized = dict(data or {})
+
++        titre = str(
+
++            normalized.pop("titre", "") or
+
++            normalized.pop("title", "") or
+
++            ""
+
++        ).strip() or "inconnu"
+
++
+
++        auteur = str(
+
++            normalized.pop("auteur", "") or
+
++            normalized.pop("author", "") or
+
++            normalized.pop("creator", "") or
+
++            ""
+
++        ).strip() or "inconnu"
+
++
+
+         return cls(
+
+-            titre=str(data.get("titre") or "").strip() or "inconnu",
+
+-            auteur=str(data.get("auteur") or "").strip() or "inconnu",
+
+-            confiance=str(data.get("confiance") or "").strip().lower() or "inconnu",
+
+-            explication=str(data.get("explication") or "").strip(),
+
++            titre=titre,
+
++            auteur=auteur,
+
++            metadata=normalized,
+
+         )
+
+     
+
+-    def get_confidence_value(self) -> float:
+
+-        try:
+
+-            return float(self.confiance.replace(",", "."))
+
+-        except ValueError:
+
+-            return -1.0
+
+-    
+
+-    def should_rename(self, confidence_min: float) -> tuple[bool, str]:
+
+-        if self.titre.lower() == "inconnu":
+
+-            return False, "Titre inconnu, renommage ignorâ”œÂ®."
+
+-        
+
+-        confidence_value = self.get_confidence_value()
+
+-        if confidence_value < confidence_min:
+
+-            return False, "Confiance insuffisante pour renommer ce fichier."
+
+-        
+
+-        return True, ""
+
+-
+
+ 
+
+ @dataclass
+
+ class EpubMetadata:
+
+@@ -162,9 +147,11 @@ class EpubMetadata:
+
+     language: str = ""
+
+     identifier: str = ""
+
+     description: str = ""
+
++    identifiers: list[str] = field(default_factory=list)
+
++    extra: dict[str, list[str]] = field(default_factory=dict)
+
+     
+
+-    def to_dict(self) -> dict[str, str]:
+
+-        return {
+
++    def to_dict(self) -> dict[str, Any]:
+
++        result: dict[str, Any] = {
+
+             "title": self.title,
+
+             "creator": self.creator,
+
+             "publisher": self.publisher,
+
+@@ -173,6 +160,14 @@ class EpubMetadata:
+
+             "description": self.description,
+
+         }
+
+ 
+
++        for key, values in self.extra.items():
+
++            if not values or key in result:
+
++                continue
+
++
+
++            result[key] = values if len(values) > 1 else values[0]
+
++
+
++        return result
+
++
+
+ 
+
+ class EpubProcessingError(Exception):
+
+     """Base exception for EPUB processing errors."""
+
+@@ -266,7 +261,15 @@ def extract_metadata_from_epub(epub_path: Path) -> EpubMetadata:
+
+     except ET.ParseError:
+
+         return metadata
+
+ 
+
+-    ns = {"dc": "http://purl.org/dc/elements/1.1/"}
+
++    ns = NAMESPACES
+
++    metadata_section = root.find(".//opf:metadata", NAMESPACES)
+
++    if metadata_section is None:
+
++        metadata_section = root.find(".//metadata")
+
++    if metadata_section is None:
+
++        metadata_section = root.find(f".//{{{OPF_NAMESPACE}}}metadata")
+
++
+
++    if metadata_section is not None:
+
++        _collect_metadata_entries(metadata_section, metadata)
+
+ 
+
+     def _get_text(xpath: str) -> str:
+
+         el = root.find(xpath, ns)
+
+@@ -279,30 +282,103 @@ def extract_metadata_from_epub(epub_path: Path) -> EpubMetadata:
+
+     metadata.identifier = _get_text(".//dc:identifier")
+
+     metadata.description = _get_text(".//dc:description")
+
+ 
+
++    identifier_elements = root.findall(".//dc:identifier", ns)
+
++    metadata.identifiers = [
+
++        (el.text or "").strip()
+
++        for el in identifier_elements
+
++        if el is not None and el.text and el.text.strip()
+
++    ]
+
++
+
++
+
++    if metadata.identifiers:
+
++        metadata.identifier = metadata.identifiers[0]
+
++
+
++
+
+     return metadata
+
+ 
+
+ 
+
+-def _normalize_n8n_response(data: Any) -> dict[str, Any]:
+
+-    """Normalize various n8n response formats to a consistent dict."""
+
++def _normalize_metadata_key(tag: str) -> str:
+
++    if tag.startswith("{"):
+
++        uri, local = tag[1:].split("}", 1)
+
++        prefix = METADATA_PREFIXES.get(uri)
+
++        return f"{prefix}:{local}" if prefix else local
+
++
+
++    return tag
+
++
+
++
+
++def _collect_metadata_entries(metadata_element: ET.Element, metadata: EpubMetadata) -> None:
+
++    for child in metadata_element:
+
++        key = _normalize_metadata_key(child.tag)
+
++
+
++        text_value = (child.text or "").strip()
+
++        if text_value:
+
++            metadata.extra.setdefault(key, []).append(text_value)
+
++
+
++        for attr_name, attr_value in child.attrib.items():
+
++            attr_value = attr_value.strip()
+
++            if not attr_value:
+
++                continue
+
++
+
++            attr_key = f"{key}@{attr_name}"
+
++            metadata.extra.setdefault(attr_key, []).append(attr_value)
+
++
+
++
+
++def _normalize_isbn_candidate(candidate: str) -> Optional[str]:
+
++    """Normalize a potential ISBN and validate its length."""
+
++    cleaned = re.sub(r"[^0-9Xx]", "", candidate).upper()
+
++    if len(cleaned) == 13 and cleaned.isdigit():
+
++        return cleaned
+
++    if len(cleaned) == 10 and re.match(r"^[0-9]{9}[0-9X]$", cleaned):
+
++        return cleaned
+
++    return None
+
++
+
++
+
++def _extract_isbn_from_identifiers(identifiers: Iterable[str]) -> Optional[str]:
+
++    """Return the first valid ISBN (10 or 13) found in the provided identifiers."""
+
++    for identifier in identifiers:
+
++        if not identifier:
+
++            continue
+
++
+
++        isbn = _normalize_isbn_candidate(identifier)
+
++        if isbn:
+
++            return isbn
+
++
+
++    return None
+
++
+
++
+
++def _extract_n8n_entry(data: Any) -> dict[str, Any] | None:
+
+     if isinstance(data, dict):
+
+         return data
+
+ 
+
+-    if isinstance(data, list) and data:
+
+-        first = data[0] or {}
+
+-        
+
+-        if isinstance(first, dict):
+
+-            inner = first.get("output") or first
+
+-            
+
+-            if isinstance(inner, dict):
+
+-                if "title" in inner or "author" in inner:
+
+-                    return {
+
+-                        "titre": inner.get("title", ""),
+
+-                        "auteur": inner.get("author", ""),
+
+-                        **{k: v for k, v in inner.items() if k not in ("title", "author")}
+
+-                    }
+
+-                return inner
+
++    if isinstance(data, list):
+
++        for item in data:
+
++            if isinstance(item, dict) and item:
+
++                return item
+
++
+
++    return None
+
++
+
++
+
++def _normalize_n8n_response(data: Any) -> dict[str, Any]:
+
++    """Normalize metadata-based n8n response to a consistent dict."""
+
++    entry = _extract_n8n_entry(data)
+
++    if not entry:
+
++        return {}
+
++
+
++    normalized = dict(entry)
+
++
+
++    # Remove legacy confidence fields if present (no longer used)
+
++    for key in ("confidence", "confiance", "score"):
+
++        normalized.pop(key, None)
+
++
+
++    if not normalized.get("titre") and normalized.get("title"):
+
++        normalized["titre"] = normalized["title"]
+
+ 
+
+-    return {}
+
++    if not normalized.get("auteur"):
+
++        auteur = normalized.get("creator") or normalized.get("author")
+
++        if auteur:
+
++            normalized["auteur"] = auteur
+
++
+
++    return normalized
+
+ 
+
+ 
+
+ def call_n8n(payload: dict, config: Config, test_mode: bool = False) -> Optional[dict[str, Any]]:
+
+@@ -335,32 +411,24 @@ def call_n8n(payload: dict, config: Config, test_mode: bool = False) -> Optional
+
+     return _normalize_n8n_response(data)
+
+ 
+
+ 
+
+-def slugify(text: str, max_length: int = DEFAULT_SLUG_MAX_LENGTH) -> str:
+
+-    """Create a safe filename from text."""
+
+-    cleaned = re.sub(r"\s+", " ", text).strip()
+
+-    cleaned = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", cleaned)
+
+-    cleaned = cleaned[:max_length]
+
+-    cleaned = cleaned.replace(" ", "_")
+
+-    return cleaned or "Sans_titre"
+
+-
+
+-
+
+ def log_result(
+
+     config: Config,
+
+     epub_path: Path,
+
+     result: EpubResult,
+
+-    metadata: EpubMetadata,
+
++    metadata_dict: dict[str, Any],
+
+     payload: dict,
+
+ ) -> None:
+
+     """Append processing result to log file as JSON line."""
+
+     record = {
+
+         "filename": epub_path.name,
+
+         "path": str(epub_path),
+
+-        "titre": result.titre,
+
+-        "auteur": result.auteur,
+
+-        "confiance": result.confiance,
+
+-        "explication": result.explication,
+
+         "destination": config.dest_path,
+
+-        "metadata": metadata.to_dict(),
+
++        "result": {
+
++            "titre": result.titre,
+
++            "auteur": result.auteur,
+
++            "metadata": result.metadata,
+
++        },
+
++        "epub_metadata": metadata_dict,
+
+         "payload": payload,
+
+     }
+
+ 
+
+@@ -370,33 +438,7 @@ def log_result(
+
+             json.dump(record, f, ensure_ascii=False)
+
+             f.write("\n")
+
+     except Exception as exc:
+
+-        print(f"  [Log] Impossible d'â”œÂ®crire dans {config.log_path}: {exc}")
+
+-
+
+-
+
+-def rename_epub(epub_path: Path, result: EpubResult, dry_run: bool) -> None:
+
+-    """Rename EPUB file based on title and author."""
+
+-    if result.auteur.lower() == "inconnu":
+
+-        base_name = result.titre
+
+-    else:
+
+-        base_name = f"{result.auteur} - {result.titre}"
+
+-
+
+-    new_name = slugify(base_name) + ".epub"
+
+-    target_path = epub_path.with_name(new_name)
+
+-    
+
+-    suffix = 1
+
+-    while target_path.exists() and target_path != epub_path:
+
+-        alt_name = f"{slugify(base_name)} ({suffix}).epub"
+
+-        target_path = epub_path.with_name(alt_name)
+
+-        suffix += 1
+
+-
+
+-    if dry_run:
+
+-        print(f"  [Simulation] Renommerait en : {target_path.name}")
+
+-    else:
+
+-        try:
+
+-            epub_path.rename(target_path)
+
+-            print(f"  Fichier renommâ”œÂ® en : {target_path.name}")
+
+-        except OSError as e:
+
+-            print(f"  [Erreur] Impossible de renommer : {e}")
+
++    print(f"  [Log] Impossible d'â”œÂ®crire dans {config.log_path}: {exc}")
+
+ 
+
+ 
+
+ class ConsoleOutput:
+
+@@ -411,9 +453,12 @@ class ConsoleOutput:
+
+     def print_result(result: EpubResult) -> None:
+
+         print(f"  Titre       : {result.titre}")
+
+         print(f"  Auteur      : {result.auteur}")
+
+-        print(f"  Confiance   : {result.confiance}")
+
+-        if result.explication:
+
+-            print(f"  Explication : {result.explication}")
+
++        if result.metadata:
+
++            for field_name in ("publisher", "date", "language"):
+
++                value = result.metadata.get(field_name)
+
++                if value:
+
++                    label = field_name.capitalize()
+
++                    print(f"  {label:11}: {value}")
+
+     
+
+     @staticmethod
+
+     def print_info(message: str) -> None:
+
+@@ -436,12 +481,22 @@ def process_epub(
+
+ 
+
+     metadata = extract_metadata_from_epub(epub_path)
+
+ 
+
++    metadata_dict = metadata.to_dict()
+
++    isbn_candidates = list(metadata.identifiers)
+
++
+
++    if metadata.identifier and metadata.identifier not in isbn_candidates:
+
++        isbn_candidates.insert(0, metadata.identifier)
+
++
+
++    isbn_value = _extract_isbn_from_identifiers(isbn_candidates)
+
++    if isbn_value:
+
++        metadata_dict["isbn"] = isbn_value
+
++
+
+     payload = {
+
+         "filename": epub_path.name,
+
+         "root": config.epub_root_label,
+
+         "destination": config.dest_path,
+
+         "text": text,
+
+-        "metadata": metadata.to_dict(),
+
++        "metadata": metadata_dict,
+
+     }
+
+ 
+
+     try:
+
+@@ -454,15 +509,9 @@ def process_epub(
+
+ 
+
+     result = EpubResult.from_dict(response)
+
+     console.print_result(result)
+
+-    log_result(config, epub_path, result, metadata, payload)
+
++    log_result(config, epub_path, result, metadata_dict, payload)
+
+ 
+
+-    should_rename, reason = result.should_rename(config.confidence_min)
+
+-    
+
+-    if not should_rename:
+
+-        console.print_info(reason)
+
+-        return
+
+-
+
+-    rename_epub(epub_path, result, dry_run)
+
++    console.print_info("Traitement terminâ”œÂ® : aucun renommage n'est dâ”œÂ®clenchâ”œÂ®.")
+
+ 
+
+ 
+
+ def process_folder(
+
+@@ -508,7 +557,6 @@ def parse_args() -> argparse.Namespace:
+
+         epilog="""
+
+ Examples:
+
+   %(prog)s --folder ~/Books --dry-run
+
+-  %(prog)s --folder ~/Books --confidence-min 0.8
+
+   %(prog)s --test --limit 5
+
+         """
+
+     )
+
+@@ -520,13 +568,6 @@ Examples:
+
+         help="Dossier contenant les EPUB (par dâ”œÂ®faut : EPUB_SOURCE_DIR ou saisie utilisateur).",
+
+     )
+
+     
+
+-    parser.add_argument(
+
+-        "--confidence-min",
+
+-        type=float,
+
+-        default=None,
+
+-        help=f"Seuil de confiance minimal (0.0 â”œÃ¡ 1.0, dâ”œÂ®faut: {DEFAULT_CONFIDENCE_MIN}).",
+
+-    )
+
+-    
+
+     parser.add_argument(
+
+         "--dry-run",
+
+         action="store_true",
+
+@@ -538,7 +579,7 @@ Examples:
+
+         action="store_true",
+
+         help="Utilise le webhook de test (sinon webhook de production).",
+
+     )
+
+-    
+
++
+
+     parser.add_argument(
+
+         "--limit",
+
+         type=int,
+
+@@ -555,7 +596,6 @@ def main() -> None:
+
+ 
+
+     config = Config.load(
+
+         test_mode=args.test,
+
+-        confidence_override=args.confidence_min
+
+     )
+
+ 
+
+     if args.folder is not None:
+
+@@ -579,6 +619,7 @@ def main() -> None:
+
+         dry_run=args.dry_run,
+
+         limit=args.limit,
+
+         test_mode=args.test,
+
++        allow_rename=args.allow_rename,
+
+     )
+
+ 
+
+     if args.dry_run:
+

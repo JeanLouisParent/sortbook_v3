@@ -1,0 +1,258 @@
+diff --git a/README.md b/README.md
+index 590baad..7cfcd7a 100644
+--- a/README.md
++++ b/README.md
+@@ -1,13 +1,14 @@
+
+ # sortbook_v3
+
+ 
+
+-Automatise l'identification et le renommage de fichiers EPUB via un workflow n8n et un LLM.
+
++Automatise l'identification des mâ”œÂ®tadonnâ”œÂ®es EPUB via un workflow n8n et un LLM.
+
+ 
+
+ ## Aperâ”œÂºu
+
+ Ce projet permet de traiter automatiquement des fichiers EPUB :
+
+ -   **Extraction intelligente :** Extrait du texte pertinent et les mâ”œÂ®tadonnâ”œÂ®es OPF de chaque EPUB.
+
+ -   **Analyse externe :** Envoie ces informations â”œÃ¡ un workflow n8n (qui peut utiliser un LLM local via Ollama) pour en dâ”œÂ®terminer le titre, l'auteur et un indice de confiance.
+
+ -   **Renommage conditionnel :** Renomme le fichier si l'indice de confiance est suffisant, sinon, l'opâ”œÂ®ration est simplement journalisâ”œÂ®e.
+
+--   **Modes d'exâ”œÂ®cution :** Supporte un mode `test` pour le dâ”œÂ®bogage et un mode `dry-run` pour simuler les renommages.
+
++-   **Envoi complet des mâ”œÂ®tadonnâ”œÂ®es :** L'agent transmet toutes les mâ”œÂ®tadonnâ”œÂ®es OPF disponibles (dont `metadata.isbn` s'il dâ”œÂ®tecte un ISBN 10 ou 13) dans le payload et les logs.
+
++-   **Modes d'exâ”œÂ®cution :** Supporte un mode `test` pour le dâ”œÂ®bogage et un mode `dry-run` pour simuler les appels sans toucher aux fichiers.
+
+ 
+
+ ## Installation rapide (local)
+
+ 
+
+@@ -25,16 +26,15 @@ Ce projet permet de traiter automatiquement des fichiers EPUB :
+
+     ```bash
+
+     python src/epub_metadata.py --folder /chemin/vers/vos/ebooks --dry-run --limit 5
+
+     ```
+
+-Le script lit les configurations (URLs de webhook n8n, dossiers source/destination, seuil de confiance, etc.) depuis l'environnement (variables d'environnement ou fichier `.env`). Utilisez `--dry-run` pour simuler les renommages ou omettez-le pour les appliquer râ”œÂ®ellement.
+
++Le script lit la configuration (URLs de webhook n8n, dossiers source/destination, etc.) depuis l'environnement (variables d'environnement ou fichier `.env`). Utilisez `--dry-run` pour rester en lecture seule et simplement afficher les retours de n8n.
+
+ Pour une configuration complâ”œÂ¿te avec n8n et Ollama, consultez la section [Docker / Compose](#docker--compose).
+
+ 
+
+ ## Arguments CLI (principaux)
+
+ 
+
+ -   `--folder PATH` : Spâ”œÂ®cifie le chemin du dossier contenant les fichiers EPUB â”œÃ¡ traiter. Si non fourni, le script utilise la variable d'environnement `EPUB_SOURCE_DIR` ou demande â”œÃ¡ l'utilisateur.
+
+--   `--dry-run` : Active le mode simulation. Le script identifie les EPUB et propose les renommages, mais n'effectue aucune modification sur le disque.
+
++-   `--dry-run` : Active le mode simulation. Le script appelle n8n et affiche les râ”œÂ®ponses sans modifier les fichiers EPUB.
+
+ -   `--limit N` : Limite le traitement aux `N` premiers fichiers EPUB trouvâ”œÂ®s. Utile pour les tests ou le traitement par lots.
+
+--   `--confidence-min FLOAT` : Dâ”œÂ®finit le seuil de confiance minimal (de 0.0 â”œÃ¡ 1.0) requis pour qu'un fichier soit renommâ”œÂ®. Surcharge la valeur dâ”œÂ®finie par la variable d'environnement `CONFIDENCE_MIN`.
+
+--   `--test` : Active le mode test. Le script utilise `N8N_WEBHOOK_TEST_URL` et affiche la râ”œÂ®ponse brute du webhook n8n sans tenter de renommer les fichiers.
+
++-   `--test` : Active le mode test. Le script utilise `N8N_WEBHOOK_TEST_URL` et affiche la râ”œÂ®ponse brute du webhook n8n sans toucher aux fichiers.
+
+ 
+
+ Pour plus de dâ”œÂ®tails sur le comportement et les interactions avec les variables d'environnement, consultez `AGENTS.md`.
+
+ 
+
+@@ -46,7 +46,7 @@ Les variables d'environnement suivantes sont lues par le script Python et utilis
+
+ # Râ”œÂ®pertoires pour les EPUB et les logs
+
+ EPUB_ROOT=./ebooks         # Chemin local vers le dossier racine contenant les EPUB. Utilisâ”œÂ® par Docker Compose.
+
+ EPUB_SOURCE_DIR=/data      # Chemin oâ”œâ•£ le script s'attend â”œÃ¡ trouver les EPUB â”œÃ¡ l'intâ”œÂ®rieur du conteneur (doit correspondre au montage de EPUB_ROOT).
+
+-EPUB_DEST=./Livres_sorted  # Chemin local vers le dossier de destination pour les EPUB renommâ”œÂ®s.
+
++EPUB_DEST=./Livres_sorted  # Chemin local montrâ”œÂ® dans le payload (aucune â”œÂ®criture automatique).
+
+ LOG_DIR=./log              # Râ”œÂ®pertoire oâ”œâ•£ seront stockâ”œÂ®s les logs.
+
+ EPUB_LOG_FILE=n8n_response.json # Nom du fichier de log.
+
+ 
+
+@@ -56,10 +56,11 @@ N8N_WEBHOOK_PROD_URL=https://192.168.1.56:5678/webhook/epub-metadata    # URL du
+
+ N8N_VERIFY_SSL=false       # Vâ”œÂ®rification SSL : 'true', 'false', ou un chemin vers un fichier de certificat CA (ex: /certs/n8n.crt).
+
+ N8N_TIMEOUT=180            # Timeout en secondes pour les requâ”œÂ¬tes HTTP vers n8n.
+
+ 
+
+-# Paramâ”œÂ¿tres de traitement
+
+-CONFIDENCE_MIN=0.9         # Seuil de confiance minimal (float 0.0-1.0) pour le renommage automatique.
+
+ DEFAULT_MAX_TEXT_CHARS=4000 # Nombre maximal de caractâ”œÂ¿res de texte â”œÃ¡ extraire de l'EPUB pour l'analyse.
+
+ DEFAULT_SLUG_MAX_LENGTH=150 # Longueur maximale pour les noms de fichiers gâ”œÂ®nâ”œÂ®râ”œÂ®s.
+
++
+
++# Activation automatique de l'agent (docker compose)
+
++RUN_EPUB_AGENT=false    # par dâ”œÂ®faut, le conteneur dâ”œÂ®marre en veille ; dâ”œÂ®finissez `true` pour exâ”œÂ®cuter automatiquement `python src/epub_metadata.py`.
+
+ ```
+
+ 
+
+ **Notes :**
+
+@@ -69,50 +70,27 @@ DEFAULT_SLUG_MAX_LENGTH=150 # Longueur maximale pour les noms de fichiers gâ”œÂ®nâ”œÂ®
+
+ 
+
+ ## Webhook n8n : Formats de râ”œÂ®ponse pris en charge
+
+ 
+
+-Le script est conâ”œÂºu pour â”œÂ¬tre flexible et peut interprâ”œÂ®ter plusieurs formats de râ”œÂ®ponse JSON de votre workflow n8n, grâ”œÃ³ce â”œÃ¡ la fonction `_normalize_n8n_response`. L'objectif est toujours d'en extraire les informations de renommage (`titre`, `auteur`, `confiance`, `explication`).
+
++Le script attend que n8n renvoie une liste d'objets `metadata` (comme le payload OPF enrichi), et `_normalize_n8n_response` râ”œÂ®cupâ”œÂ¿re le premier objet utile, remappe `title`/`creator` en `titre`/`auteur` et conserve les autres champs pour les logs.
+
+ 
+
+-Voici les formats de râ”œÂ®ponse que le script peut gâ”œÂ®rer :
+
++Voici un exemple de râ”œÂ®ponse attendue :
+
+ 
+
+--   **Format direct (recommandâ”œÂ®) :** Un objet JSON contenant directement les clâ”œÂ®s souhaitâ”œÂ®es.
+
+-    ```json
+
+-    {
+
+-        "titre": "Le Titre du Livre",
+
+-        "auteur": "L'Auteur Câ”œÂ®lâ”œÂ¿bre",
+
+-        "confiance": "0.95",
+
+-        "explication": "Correspondance â”œÂ®levâ”œÂ®e avec la base de donnâ”œÂ®es."
+
+-    }
+
+-    ```
+
+--   **Clâ”œÂ®s alternatives `title`/`author` :** Si votre workflow renvoie `title` et `author` au lieu de `titre` et `auteur`, elles seront automatiquement converties.
+
+-    ```json
+
++```json
+
++[
+
+     {
+
+-        "title": "The Book Title",
+
+-        "author": "Famous Author"
+
++        "title": "L'Epâ”œÂ®e de Shannara",
+
++        "creator": "Terry Brooks",
+
++        "identifier": [
+
++            {"type": "ISBN_10", "identifier": "2290325872"},
+
++            {"type": "ISBN_13", "identifier": "9782290325872"}
+
++        ],
+
++        "language": null,
+
++        "date": "Apr 05, 2005",
+
++        "publisher": "J'ai lu"
+
+     }
+
+-    ```
+
+--   **Format encapsulâ”œÂ® (`output`) :** Un objet JSON contenant un sous-objet `output` qui contient lui-mâ”œÂ¬me les informations.
+
+-    ```json
+
+-    {
+
+-        "output": {
+
+-            "titre": "Le Titre",
+
+-            "auteur": "L'Auteur"
+
+-        }
+
+-    }
+
+-    ```
+
+--   **Format liste :** Le script peut â”œÂ®galement traiter une liste d'objets, en ne considâ”œÂ®rant que le premier â”œÂ®lâ”œÂ®ment. Ces objets peuvent â”œÂ¬tre au format direct ou encapsulâ”œÂ®.
+
+-    ```json
+
+-    [
+
+-        { "titre": "Titre 1", "auteur": "Auteur 1" },
+
+-        { "titre": "Titre 2", "auteur": "Auteur 2" }
+
+-    ]
+
+-    ```
+
+-    Ou
+
+-    ```json
+
+-    [
+
+-        { "output": { "titre": "Titre", "auteur": "Auteur" } }
+
+-    ]
+
+-    ```
+
++]
+
++```
+
+ 
+
+-En mode `--test`, la râ”œÂ®ponse brute de n8n est affichâ”œÂ®e directement dans la console sans tentative de normalisation ou de renommage.
+
++En mode `--test`, la râ”œÂ®ponse brute de n8n est affichâ”œÂ®e directement dans la console sans normalisation ni â”œÂ®criture sur les fichiers.
+
+ 
+
+ ## Docker / Compose
+
+ 
+
