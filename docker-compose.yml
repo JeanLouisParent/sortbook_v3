@@ -16,7 +16,7 @@ services:
       - N8N_SECURE_COOKIE=true
       - WEBHOOK_URL=https://192.168.1.56:5678/
     volumes:
-      - ./n8n_data:/home/node/.n8n
+      - ./data/n8n_data:/home/node/.n8n
       - ./certs:/certs:ro
 
   ollama:
@@ -33,7 +33,7 @@ services:
               count: 1
               capabilities: ["gpu"]
     volumes:
-      - ./ollama_data:/root/.ollama
+      - ./data/ollama_data:/root/.ollama
       - ./docker/ollama-entrypoint.sh:/entrypoint.sh:ro
     entrypoint:
       - /bin/sh
@@ -60,7 +60,7 @@ services:
       - N8N_MODE=${N8N_MODE}
       - N8N_VERIFY_SSL=${N8N_VERIFY_SSL}
     volumes:
-      - ${EPUB_ROOT:-./ebooks}:/data:rw
+      - ${EPUB_ROOT:-./data/ebooks}:/data:rw
       - .:/app:rw
       - ./certs:/certs:ro
 
@@ -68,7 +68,7 @@ services:
     image: keinos/sqlite3:latest
     restart: unless-stopped
     volumes:
-      - ./database:/database
+      - ./data/database:/database
       - ./docker/sqlite-init.sh:/init.sh:ro
     entrypoint:
       - /bin/sh

@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sortbook"
+version = "0.1.0"
+description = "Outil d'automatisation pour l'identification et le tri d'ebooks via n8n."
+authors = [
+    {name = "Jean-Louis", email = "jean-louis@example.com"},
+]
+dependencies = [
+    "requests>=2.31.0",
+]
+requires-python = ">=3.9"
+
+[project.scripts]
+sortbook = "src.epub_metadata:main"
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
